@@ -4,3 +4,6 @@ obj/
 logs/
 .vs/
 *.user
+node_modules/
+dist/
+build/
