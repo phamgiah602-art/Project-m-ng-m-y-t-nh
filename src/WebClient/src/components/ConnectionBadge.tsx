@@ -1,0 +1,1 @@
+export function ConnectionBadge({ state }: { state: string }) { return <span className={`badge ${state}`}>{state === 'connected' ? 'Đã kết nối' : state === 'connecting' ? 'Đang kết nối…' : 'Đang kết nối lại…'}</span>; }
