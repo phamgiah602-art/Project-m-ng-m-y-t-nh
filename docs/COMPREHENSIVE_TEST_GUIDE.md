@@ -1,230 +1,323 @@
 # 🚀 TÀI LIỆU HƯỚNG DẪN TEST TOÀN DIỆN VÀ CHI TIẾT (E2E)
 
-Tài liệu này cung cấp các bước cài đặt và chạy lệnh cực kỳ chi tiết (từng terminal, từng lệnh gõ) cho 4 kịch bản mạng LAN.
+Tài liệu này hướng dẫn chi tiết cách kiểm thử toàn bộ hệ thống **Remote Control LAN** trong 4 kịch bản mạng LAN khác nhau.
 
 ---
 
-## 💻 KỊCH BẢN 1: TỰ TEST TRÊN CHÍNH MACBOOK CỦA BẠN (Localhost)
-**Số lượng máy tính:** 1 máy Mac duy nhất.
-**Số lượng terminal cần mở:** 3 terminal riêng biệt trên cùng máy Mac này.
+## 📚 KIẾN THỨC NỀN TẢNG
 
-### Yêu cầu cài đặt trước:
-- Đã cài đặt **.NET 8 SDK** và **Node.js**.
-- Đã clone/copy source code dự án về máy.
+### Hệ thống gồm 3 thành phần bắt buộc:
 
-### Chi tiết các bước thực hiện trên Máy Mac:
+| Thành phần | Vai trò | Cần cài đặt |
+|---|---|---|
+| **Gateway** (Máy chủ) | Trung tâm xử lý API, WebSocket, cơ sở dữ liệu | .NET 8 SDK |
+| **Web Client** (Giao diện) | Trang web cho người điều khiển (Operator) | Node.js (v18+) |
+| **Agent** (Máy bị điều khiển) | Chạy ngầm trên máy Target, nhận lệnh từ Gateway | .NET 8 SDK |
 
-#### Terminal 1: Chạy Gateway
-1. Mở Terminal 1.
-2. Di chuyển vào thư mục Gateway và chạy:
-   ```bash
-   cd "/Users/phamgiahung/Downloads/ĐỒ ÁN MÔN HỌC/MẠNG MÁY TÍNH/PROJECT VIPPRO/src/Gateway"
-   dotnet run
-   ```
-   *(Gateway sẽ chạy trên `http://localhost:5000`)*
+### Quy trình hoạt động tổng quát (áp dụng cho mọi kịch bản):
 
-#### Terminal 2: Tạo Agent và chạy Agent
-1. Mở Terminal 2.
-2. Đăng ký/đăng nhập và tạo Agent (thay đổi token tương ứng) để lấy `AgentId` và `AgentSecretKey`:
-   ```bash
-   # Lấy Token
-   curl -s -X POST http://localhost:5000/api/auth/login \
-     -H "Content-Type: application/json" \
-     -d '{"username":"admin","password":"Admin@123456"}'
-   
-   # Tạo Agent bằng Token vừa lấy
-   curl -s -X POST http://localhost:5000/api/agents \
-     -H "Content-Type: application/json" \
-     -H "Authorization: Bearer <NHẬP_TOKEN_VÀO_ĐÂY>" \
-     -d '{"agentName":"MacBook-Test","platform":"MacOS"}'
-   ```
-3. Mở file `src/Agent/appsettings.json`, điền `AgentId` và `AgentSecretKey` vừa nhận được. Đảm bảo `GatewayUrl` là `"ws://localhost:5000/ws"`.
-4. Vẫn ở Terminal 2, khởi động Agent:
-   ```bash
-   cd "/Users/phamgiahung/Downloads/ĐỒ ÁN MÔN HỌC/MẠNG MÁY TÍNH/PROJECT VIPPRO/src/Agent"
-   dotnet run
-   ```
-   *(Ghi lại mã PIN 6 số xuất hiện trên Terminal này)*
+```
+Bước 1: Khởi động Gateway (máy chủ)
+Bước 2: Khởi động Web Client → Mở trình duyệt → Đăng ký tài khoản → Đăng nhập
+Bước 3: Tạo Agent qua lệnh curl (vì giao diện web chưa có nút Thêm Agent)
+Bước 4: Cấu hình Agent (dán AgentId + Secret vào file cấu hình)
+Bước 5: Khởi động Agent → Agent in ra mã PIN 6 số
+Bước 6: Quay lại Web → Chọn Agent → Nhập PIN → Bắt đầu điều khiển
+```
 
-#### Terminal 3: Chạy Web Client
-1. Mở Terminal 3.
-2. Đảm bảo file `src/WebClient/.env.local` có nội dung: `VITE_GATEWAY_HTTP_URL=http://localhost:5000`
-3. Khởi động giao diện Web:
-   ```bash
-   cd "/Users/phamgiahung/Downloads/ĐỒ ÁN MÔN HỌC/MẠNG MÁY TÍNH/PROJECT VIPPRO/src/WebClient"
-   npm run dev
-   ```
-4. Mở trình duyệt truy cập `http://localhost:5173`. Đăng nhập bằng `admin` / `Admin@123456`, chọn Agent, nhập mã PIN và bắt đầu điều khiển.
+---
 
-### ❓ Xử lý sự cố thường gặp (Troubleshooting)
-- **Hỏi:** *Đã chạy Gateway nhưng `http://localhost:5000/health` không báo OK hoặc không truy cập được?*
-  **Đáp:** Hãy kiểm tra xem Terminal 1 có báo lỗi báo đỏ nào không. Nếu có lỗi "Address in use", nghĩa là cổng 5000 đang bị chiếm (có thể do một Gateway cũ chưa tắt). Hãy nhấn `Ctrl + C` ở Terminal 1 vài lần để tắt hẳn, sau đó gõ `dotnet run` lại.
-- **Hỏi:** *Ở Terminal 2 (Agent), mã PIN xuất hiện quá nhanh bị trôi mất thì làm sao lấy lại?*
-  **Đáp:** Mã PIN sinh ra ngẫu nhiên mỗi lần Agent khởi động. Nếu bị trôi mất, bạn chỉ cần nhấn `Ctrl + C` để dừng Agent, sau đó gõ lại `dotnet run`. Agent sẽ kết nối lại và in ra một mã PIN 6 số mới toanh.
-- **Hỏi:** *Ở Terminal 3, khi vào `localhost:5173` lại bị vào thẳng trang ghép cặp (không thấy chỗ đăng nhập), và danh sách Agent trống trơn?*
-  **Đáp:** Điều này là do trình duyệt của bạn đã lưu phiên đăng nhập từ lần trước (cache), nhưng Database của Gateway hiện tại chưa có Agent nào. 
-  -> **Cách xử lý:** Quay lại bước **Tạo Agent (Terminal 2)**, chạy 2 lệnh `curl` để tạo Agent. Sau khi tạo xong, quay lại trình duyệt và nhấn nút **"Làm mới danh sách"** (biểu tượng mũi tên xoay tròn), Agent sẽ hiện ra. Nếu bạn muốn đăng nhập lại từ đầu, hãy F12 -> Application -> Local Storage -> Xóa mục `auth_token` rồi F5 lại trang.
+## 💻 KỊCH BẢN 1: TỰ TEST TRÊN 1 MÁY MACBOOK (Localhost)
+
+| Thông tin | Chi tiết |
+|---|---|
+| **Số máy tính** | 1 máy Mac duy nhất |
+| **Số terminal cần mở** | 3 cửa sổ Terminal riêng biệt |
+| **Yêu cầu cài đặt** | .NET 8 SDK, Node.js (v18+), mã nguồn dự án |
+
+### Bước 1 — Terminal 1: Khởi động Gateway
+
+```bash
+cd "/Users/phamgiahung/Downloads/ĐỒ ÁN MÔN HỌC/MẠNG MÁY TÍNH/PROJECT VIPPRO/src/Gateway"
+dotnet run
+```
+
+**Kết quả mong đợi:** Terminal hiện dòng chữ `Now listening on: http://localhost:5000`. Giữ nguyên terminal này, **không được tắt**.
+
+**Kiểm tra:** Mở trình duyệt, truy cập `http://localhost:5000/health`. Nếu thấy `{"status":"ok"}` nghĩa là Gateway đã sẵn sàng.
+
+### Bước 2 — Terminal 2: Khởi động Web Client
+
+```bash
+cd "/Users/phamgiahung/Downloads/ĐỒ ÁN MÔN HỌC/MẠNG MÁY TÍNH/PROJECT VIPPRO/src/WebClient"
+npm run dev
+```
+
+**Kết quả mong đợi:** Terminal hiện dòng `Local: http://localhost:5173/`. Giữ nguyên terminal này.
+
+**Thao tác trên trình duyệt:**
+1. Mở `http://localhost:5173` trên trình duyệt.
+2. Bạn sẽ thấy màn hình **"Đăng nhập Operator"**.
+3. Bấm nút **"Chưa có tài khoản? Đăng ký"** ở dưới cùng.
+4. Nhập tên đăng nhập (ví dụ: `admin`) và mật khẩu (ví dụ: `Admin@123456`), bấm **Đăng ký**.
+5. Hệ thống sẽ tự động đăng nhập và chuyển sang trang Dashboard.
+
+> **Lưu ý:** Nếu bạn đã đăng ký trước đó, chỉ cần nhập đúng tài khoản cũ và bấm **Đăng nhập** là được. Nếu bạn muốn đăng xuất, bấm nút **"Đăng xuất"** ở góc phải trên cùng của trang Dashboard.
+
+### Bước 3 — Terminal 3: Tạo Agent qua API
+
+Mở Terminal 3 và chạy lệnh sau (copy nguyên cả khối, dán vào Terminal, bấm Enter):
+
+```bash
+# === Bước 3a: Lấy token đăng nhập tự động ===
+TOKEN=$(curl -s -X POST http://localhost:5000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"Admin@123456"}' \
+  | grep -o '"token":"[^"]*' | grep -o '[^"]*$')
+
+echo "Token: $TOKEN"
+```
+
+**Kiểm tra:** Nếu dòng `Token:` hiện ra một chuỗi dài → thành công. Nếu rỗng → kiểm tra lại tài khoản hoặc Gateway có đang chạy không.
+
+Tiếp tục chạy lệnh tạo Agent:
+
+```bash
+# === Bước 3b: Tạo Agent ===
+curl -s -X POST http://localhost:5000/api/agents \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"agentName":"MacBook-Test","platform":"MacOS"}'
+```
+
+**Kết quả mong đợi:** Terminal in ra một dòng JSON như sau:
+```json
+{"agentId":"xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx","agentSecretKey":"AbCdEfGhIjK...=","agentName":"MacBook-Test"}
+```
+
+Trong đó:
+- `agentId` = chuỗi có dấu gạch ngang (ví dụ: `d6b797b1-1234-5678-abcd-111111111111`)
+- `agentSecretKey` = chuỗi ký tự kết thúc bằng `=` (ví dụ: `A1b2C3d4E5f6G7h8=`)
+
+> ⚠️ **QUAN TRỌNG:** `agentSecretKey` chỉ hiển thị **DUY NHẤT 1 LẦN** tại bước này. Nếu mất, phải tạo Agent mới.
+
+### Bước 4 — Cấu hình Agent
+
+Mở file `src/Agent/appsettings.json` và sửa 3 dòng sau:
+
+```json
+{
+  "Agent": {
+    "GatewayUrl": "ws://localhost:5000/ws",
+    "AgentId": "<DÁN agentId VÀO ĐÂY>",
+    "AgentSecretKey": "<DÁN agentSecretKey VÀO ĐÂY>",
+    "AllowPowerCommands": false,
+    "AdditionalBlockedPaths": [],
+    "AdditionalProtectedProcesses": []
+  }
+}
+```
+
+### Bước 5 — Terminal 3 (tiếp): Khởi động Agent
+
+```bash
+cd "/Users/phamgiahung/Downloads/ĐỒ ÁN MÔN HỌC/MẠNG MÁY TÍNH/PROJECT VIPPRO/src/Agent"
+dotnet run
+```
+
+**Kết quả mong đợi:** Terminal in ra dòng chứa **mã PIN 6 số** (ví dụ: `PIN: 482917`). Ghi lại mã này.
+
+> **Nếu mã PIN trôi quá nhanh:** Nhấn `Ctrl + C` để dừng Agent, rồi gõ lại `dotnet run`. Mỗi lần khởi động sẽ sinh mã PIN mới.
+
+### Bước 6 — Ghép cặp trên trình duyệt
+
+1. Quay lại trình duyệt (`http://localhost:5173`).
+2. Bấm nút **"Làm mới danh sách"** → Agent vừa tạo sẽ xuất hiện trong danh sách.
+3. Chọn Agent từ dropdown.
+4. Nhập mã PIN 6 số vừa ghi ở Bước 5.
+5. Bấm **"Kết nối"** → Nếu thành công, trang sẽ chuyển sang giao diện điều khiển.
 
 ---
 
 ## 🖥 KỊCH BẢN 2: WINDOWS ĐIỀU KHIỂN MACBOOK
-**Số lượng máy tính:** 2 máy.
-- **Máy 1 (Windows)**: Vai trò **Operator**. Mở 2 terminal. Chạy Gateway và Web Client.
-- **Máy 2 (MacBook)**: Vai trò **Target**. Mở 1 terminal. Chạy Agent.
 
-### Yêu cầu cài đặt trước:
-- Cả 2 máy phải kết nối **cùng một mạng WiFi/LAN**.
-- Cả 2 máy đều có mã nguồn dự án.
-- **Máy Windows**: Cài .NET 8 SDK, Node.js.
-- **Máy MacBook**: Cài .NET 8 SDK.
+| Thông tin | Chi tiết |
+|---|---|
+| **Số máy tính** | 2 máy (cùng mạng WiFi/LAN) |
+| **Máy Windows (Operator)** | Mở 2 terminal — Chạy Gateway + Web Client |
+| **Máy MacBook (Target)** | Mở 1 terminal — Chạy Agent |
+| **Yêu cầu cài đặt (Win)** | .NET 8 SDK, Node.js |
+| **Yêu cầu cài đặt (Mac)** | .NET 8 SDK |
 
-### Chi tiết các bước thực hiện:
+### TRÊN MÁY WINDOWS (OPERATOR)
 
-#### BƯỚC 1: TRÊN MÁY WINDOWS (OPERATOR)
-1. **Tìm IP mạng LAN**:
-   - Mở Command Prompt (cmd), gõ lệnh `ipconfig`. Tìm dòng *IPv4 Address* (VD: `192.168.1.15`). Ghi nhớ IP này.
-2. **Mở Tường Lửa (Firewall)**:
-   - Mở PowerShell dưới quyền **Administrator**. Chạy lệnh:
-     ```powershell
-     netsh advfirewall firewall add rule name="Allow Port 5000" dir=in action=allow protocol=TCP localport=5000
-     ```
-3. **Terminal 1 (Windows) - Chạy Gateway**:
-   - Mở Terminal, trỏ tới thư mục Gateway. Chạy:
-     ```bash
-     dotnet run --urls "http://0.0.0.0:5000"
-     ```
-     *(Phải có `--urls` để mở kết nối cho mạng LAN)*
-4. **Terminal 2 (Windows) - Chạy Web Client**:
-   - Sửa file `src\WebClient\.env.local`:
-     ```env
-     VITE_GATEWAY_HTTP_URL=http://192.168.1.15:5000
-     ```
-     *(Thay `192.168.1.15` bằng IP thực tế của máy Win)*
-   - Chạy lệnh:
-     ```bash
-     cd src\WebClient
-     npm run dev -- --host
-     ```
-   - Mở trình duyệt tại `http://localhost:5173` (để tạo Agent mới chọn Platform "MacOS", lấy `AgentId` và `Secret` gửi sang Mac).
+**1. Tìm IP mạng LAN:**
+Mở Command Prompt (cmd), gõ `ipconfig`. Tìm dòng `IPv4 Address` (ví dụ: `192.168.1.15`).
 
-#### BƯỚC 2: TRÊN MÁY MACBOOK (TARGET)
-1. **Terminal 1 (MacBook) - Chạy Agent**:
-   - Sửa file `src/Agent/appsettings.json`:
-     ```json
-     "GatewayUrl": "ws://192.168.1.15:5000/ws",
-     "AgentId": "<ID ĐƯỢC WINDOWS TẠO>",
-     "AgentSecretKey": "<SECRET ĐƯỢC WINDOWS TẠO>"
-     ```
-   - Chạy Agent:
-     ```bash
-     cd src/Agent
-     dotnet run
-     ```
-   - Đọc mã PIN cho máy Windows nhập vào trình duyệt để ghép cặp.
+**2. Mở Firewall cho cổng 5000:**
+Mở PowerShell dưới quyền **Administrator** và chạy:
+```powershell
+netsh advfirewall firewall add rule name="Allow Port 5000" dir=in action=allow protocol=TCP localport=5000
+```
+
+**3. Terminal 1 (Windows) — Chạy Gateway:**
+```bash
+cd src\Gateway
+dotnet run --urls "http://0.0.0.0:5000"
+```
+> Phải dùng `0.0.0.0` thay vì `localhost` để máy khác trong LAN truy cập được.
+
+**4. Terminal 2 (Windows) — Chạy Web Client:**
+- Sửa file `src\WebClient\.env.local`:
+  ```
+  VITE_GATEWAY_HTTP_URL=http://192.168.1.15:5000
+  ```
+- Chạy:
+  ```bash
+  cd src\WebClient
+  npm run dev -- --host
+  ```
+- Mở trình duyệt `http://localhost:5173` → **Đăng ký** tài khoản → **Đăng nhập**.
+
+**5. Tạo Agent (trên PowerShell hoặc cmd):**
+Tương tự Bước 3 ở Kịch bản 1, nhưng thay `localhost` bằng `192.168.1.15`. Chọn Platform là `"MacOS"`.
+Gửi `agentId` và `agentSecretKey` sang máy Mac (qua chat, email, USB...).
+
+### TRÊN MÁY MACBOOK (TARGET)
+
+**1. Terminal 1 (MacBook) — Cấu hình và chạy Agent:**
+- Sửa `src/Agent/appsettings.json`:
+  ```json
+  "GatewayUrl": "ws://192.168.1.15:5000/ws",
+  "AgentId": "<ID từ máy Windows>",
+  "AgentSecretKey": "<Secret từ máy Windows>"
+  ```
+- Chạy:
+  ```bash
+  cd src/Agent
+  dotnet run
+  ```
+- Đọc mã PIN → Gửi cho người ở máy Windows nhập vào trình duyệt.
 
 ---
 
 ## 🍏 KỊCH BẢN 3: MACBOOK ĐIỀU KHIỂN WINDOWS
-**Số lượng máy tính:** 2 máy.
-- **Máy 1 (MacBook)**: Vai trò **Operator**. Mở 2 terminal. Chạy Gateway và Web Client.
-- **Máy 2 (Windows)**: Vai trò **Target**. Mở 1 terminal. Chạy Agent.
 
-### Yêu cầu cài đặt trước:
-- Tương tự kịch bản 2. Cùng chung mạng WiFi.
+| Thông tin | Chi tiết |
+|---|---|
+| **Số máy tính** | 2 máy (cùng mạng WiFi/LAN) |
+| **Máy MacBook (Operator)** | Mở 2 terminal — Chạy Gateway + Web Client |
+| **Máy Windows (Target)** | Mở 1 terminal — Chạy Agent |
+| **Yêu cầu cài đặt (Mac)** | .NET 8 SDK, Node.js |
+| **Yêu cầu cài đặt (Win)** | .NET 8 SDK (hoặc .NET 8 Runtime) |
 
-### Chi tiết các bước thực hiện:
+### TRÊN MÁY MACBOOK (OPERATOR)
 
-#### BƯỚC 1: TRÊN MÁY MACBOOK (OPERATOR)
-1. **Tìm IP mạng LAN**:
-   - Mở Terminal, gõ lệnh `ipconfig getifaddr en0`. (Giả sử ra IP: `192.168.1.20`).
-2. **Terminal 1 (MacBook) - Chạy Gateway**:
-   ```bash
-   cd src/Gateway
-   dotnet run --urls "http://0.0.0.0:5000"
-   ```
-3. **Terminal 2 (MacBook) - Chạy Web Client**:
-   - Sửa file `src/WebClient/.env.local`:
-     ```env
-     VITE_GATEWAY_HTTP_URL=http://192.168.1.20:5000
-     ```
-   - Chạy lệnh:
-     ```bash
-     cd src/WebClient
-     npm run dev -- --host
-     ```
-   - Mở trình duyệt, tạo Agent mới chọn Platform "Windows". Gửi `AgentId` và `Secret` sang máy Win.
+**1. Tìm IP mạng LAN:**
+```bash
+ipconfig getifaddr en0
+```
+(Ví dụ: `192.168.1.20`). Mac mặc định không chặn cổng, không cần chỉnh Firewall.
 
-#### BƯỚC 2: TRÊN MÁY WINDOWS (TARGET)
-1. **Terminal 1 (Windows) - Chạy Agent**:
-   - Sửa file `src\Agent\appsettings.json`:
-     ```json
-     "GatewayUrl": "ws://192.168.1.20:5000/ws",
-     "AgentId": "<ID ĐƯỢC MAC TẠO>",
-     "AgentSecretKey": "<SECRET ĐƯỢC MAC TẠO>"
-     ```
-   - Chạy Agent:
-     ```bash
-     cd src\Agent
-     dotnet run
-     ```
-   - Lấy mã PIN đưa cho MacBook ghép cặp. 
-   *(Lưu ý: Nếu Windows Defender báo chặn, hãy bấm "Allow access")*
+**2. Terminal 1 (MacBook) — Chạy Gateway:**
+```bash
+cd src/Gateway
+dotnet run --urls "http://0.0.0.0:5000"
+```
+
+**3. Terminal 2 (MacBook) — Chạy Web Client:**
+- Sửa `src/WebClient/.env.local`:
+  ```
+  VITE_GATEWAY_HTTP_URL=http://192.168.1.20:5000
+  ```
+- Chạy:
+  ```bash
+  cd src/WebClient
+  npm run dev -- --host
+  ```
+- Mở trình duyệt → Đăng ký → Đăng nhập.
+
+**4. Tạo Agent (Terminal mới trên Mac):**
+Tương tự Bước 3 ở Kịch bản 1, chọn Platform là `"Windows"`. Gửi credentials sang máy Win.
+
+### TRÊN MÁY WINDOWS (TARGET)
+
+**1. Terminal 1 (Windows) — Cấu hình và chạy Agent:**
+- Sửa `src\Agent\appsettings.json`:
+  ```json
+  "GatewayUrl": "ws://192.168.1.20:5000/ws",
+  "AgentId": "<ID từ máy Mac>",
+  "AgentSecretKey": "<Secret từ máy Mac>"
+  ```
+- Chạy: `dotnet run`
+- Đọc mã PIN → Gửi cho người ở máy MacBook nhập vào trình duyệt.
+
+> **Lưu ý Windows:** Nếu Windows Defender báo chặn, bấm **"Allow access"**. Keylogger có thể bị Antivirus phát hiện → cần thêm exception.
 
 ---
 
 ## 🖥 KỊCH BẢN 4: WINDOWS ĐIỀU KHIỂN WINDOWS
-**Số lượng máy tính:** 2 máy.
-- **Máy 1 (Windows A)**: Vai trò **Operator**. Mở 2 terminal. (Chạy Gateway + Web Client).
-- **Máy 2 (Windows B)**: Vai trò **Target**. Mở 1 terminal. (Chạy Agent).
 
-### Yêu cầu cài đặt trước:
-- Cả 2 máy chung mạng WiFi, đều cài .NET 8. Máy A cần cài thêm Node.js.
+| Thông tin | Chi tiết |
+|---|---|
+| **Số máy tính** | 2 máy Windows (cùng mạng WiFi/LAN) |
+| **Máy Windows A (Operator)** | Mở 2 terminal — Chạy Gateway + Web Client |
+| **Máy Windows B (Target)** | Mở 1 terminal — Chạy Agent |
+| **Yêu cầu cài đặt (Máy A)** | .NET 8 SDK, Node.js |
+| **Yêu cầu cài đặt (Máy B)** | .NET 8 SDK (hoặc Runtime) |
 
-### Chi tiết các bước thực hiện:
+### TRÊN MÁY WINDOWS A (OPERATOR)
 
-#### BƯỚC 1: TRÊN MÁY WINDOWS A (OPERATOR)
-1. **Mở Tường Lửa (Firewall)**:
-   - Mở PowerShell quyền Admin và chạy lệnh cho phép Port 5000 như ở Kịch bản 2.
-2. **Tìm IP mạng LAN**: Chạy `ipconfig` (Giả sử: `192.168.1.50`).
-3. **Terminal 1 (Windows A) - Chạy Gateway**:
-   ```bash
-   cd src\Gateway
-   dotnet run --urls "http://0.0.0.0:5000"
-   ```
-4. **Terminal 2 (Windows A) - Chạy Web Client**:
-   - Sửa file `src\WebClient\.env.local` thành `VITE_GATEWAY_HTTP_URL=http://192.168.1.50:5000`
-   - Chạy Web Client: `npm run dev -- --host`
-   - Mở trình duyệt, tạo Agent cho Platform "Windows".
+Thực hiện giống hệt phần "TRÊN MÁY WINDOWS (OPERATOR)" ở Kịch bản 2:
+1. Tìm IP bằng `ipconfig` (ví dụ: `192.168.1.50`).
+2. Mở Firewall cổng 5000.
+3. Terminal 1: Chạy Gateway với `--urls "http://0.0.0.0:5000"`.
+4. Terminal 2: Sửa `.env.local` → Chạy Web Client → Đăng ký/Đăng nhập.
+5. Tạo Agent (chọn Platform `"Windows"`), gửi credentials sang máy B.
 
-#### BƯỚC 2: TRÊN MÁY WINDOWS B (TARGET)
-1. **Terminal 1 (Windows B) - Chạy Agent**:
-   - Sửa `src\Agent\appsettings.json`:
-     ```json
-     "GatewayUrl": "ws://192.168.1.50:5000/ws"
-     ```
-   - Điền ID và Secret. Chạy `dotnet run`. Đưa mã PIN cho máy A.
+### TRÊN MÁY WINDOWS B (TARGET)
+
+1. Sửa `appsettings.json`: đặt `GatewayUrl` trỏ về IP máy A.
+2. Chạy `dotnet run`.
+3. Đọc mã PIN → Gửi cho máy A nhập.
 
 ---
 
-## 📋 QUY TRÌNH TEST CÁC TÍNH NĂNG (Dùng cho cả 4 kịch bản)
+## 📋 QUY TRÌNH TEST CÁC TÍNH NĂNG
 
-Sau khi nhập PIN và ghép cặp thành công, bạn tiến hành test lần lượt trên Web Client như sau:
+Sau khi ghép cặp thành công (trang chuyển sang giao diện điều khiển), hãy test lần lượt:
 
-1. **Quản Lý Tiến Trình (Process)**
-   - Click tab "Processes". Danh sách tiến trình máy Target phải tải lên.
-   - Thử chức năng "Start Process": Gõ `notepad` (nếu target là Win) hoặc `calculator` (nếu target là Mac) -> Nhấn Start. App tương ứng phải tự bật lên.
-   - Chọn app vừa mở trong danh sách -> Nhấn "Kill". App phải tự tắt đi.
-2. **Theo Dõi Màn Hình (Screen View)**
-   - Click tab "Screen". Trình duyệt phải hiện hình ảnh desktop của máy Target (cập nhật liên tục ~1-2 hình/giây).
-   - *(Lưu ý máy Mac: Máy Target phải cấp quyền Screen Recording trong System Settings).*
-3. **Webcam**
-   - Click tab "Webcam". Camera máy Target phải bật (đèn sáng) và truyền video lên trình duyệt.
-   - *(Lưu ý máy Mac: Máy Target phải cấp quyền Camera).*
-4. **Quản Lý Tập Tin (File Browser)**
-   - Click tab "Files". Danh sách đĩa / thư mục phải hiện ra.
-   - Truy cập thử `C:\` hoặc `/Users/`. Bạn phải thấy được cấu trúc file.
-5. **Keylogger**
-   - Click nút "Enable Keylogger".
-   - Quay sang máy Target, gõ văn bản bất kỳ (có thể mở Notepad/Word để gõ).
-   - Trở lại Web Client, bạn phải thấy từng phím được gõ hiển thị real-time.
-   - *(Lưu ý máy Mac: Cần cấp quyền Accessibility. Máy Win: Có thể bị Windows Defender diệt, cần add Exception).*
+| # | Tính năng | Cách test | Kết quả đúng |
+|---|---|---|---|
+| 1 | **Danh sách tiến trình** | Click tab "Processes" | Hiện danh sách tất cả tiến trình đang chạy trên máy Target |
+| 2 | **Mở ứng dụng** | Gõ `notepad` (Win) hoặc `open -a Calculator` (Mac) vào ô Start Process → Bấm Start | App tương ứng tự mở trên máy Target |
+| 3 | **Tắt ứng dụng** | Chọn app vừa mở → Bấm "Kill" | App bị đóng lập tức |
+| 4 | **Xem màn hình** | Click tab "Screen" | Hiện ảnh chụp desktop máy Target, cập nhật liên tục |
+| 5 | **Webcam** | Click tab "Webcam" | Đèn camera trên máy Target sáng, hình ảnh truyền lên Web |
+| 6 | **Duyệt file** | Click tab "Files", mở `/Users/` (Mac) hoặc `C:\` (Win) | Hiện cây thư mục + file |
+| 7 | **Keylogger** | Bật Keylogger → Sang máy Target gõ bàn phím | Ký tự xuất hiện real-time trên Web |
+| 8 | **Ngắt kết nối** | Nhấn `Ctrl + C` trên Terminal Agent | Web hiển thị trạng thái Offline ngay lập tức |
+| 9 | **PIN hết hạn** | Để Agent chạy 5 phút không nhập PIN | Nhập PIN cũ sẽ bị từ chối, phải restart Agent |
+
+### Lưu ý quyền trên macOS (khi máy Target là Mac):
+- **Screen View:** Cần cấp quyền *System Settings → Privacy & Security → Screen Recording* cho Terminal.
+- **Webcam:** Cần cấp quyền *Camera* cho Terminal.
+- **Keylogger:** Cần cấp quyền *Accessibility* cho Terminal.
+
+### Lưu ý trên Windows (khi máy Target là Windows):
+- **Keylogger:** Có thể bị Windows Defender/Antivirus chặn → cần thêm exception.
+- **Kill Process:** Tiến trình SYSTEM sẽ bị từ chối (Access Denied) → đây là hành vi đúng.
+
+---
+
+## ❓ XỬ LÝ SỰ CỐ THƯỜNG GẶP
+
+| Sự cố | Nguyên nhân | Cách khắc phục |
+|---|---|---|
+| `http://localhost:5000/health` không trả về gì | Gateway chưa chạy hoặc bị lỗi | Kiểm tra Terminal 1, nếu có lỗi "Address in use" → `Ctrl + C` rồi `dotnet run` lại |
+| Lệnh `curl` không trả về gì | Gateway đang tắt, hoặc thiếu chữ `curl` ở đầu lệnh | Đảm bảo Gateway đang chạy (Terminal 1), copy đúng lệnh có chữ `curl` |
+| Mã PIN trôi quá nhanh | PIN chỉ hiện 1 lần khi Agent khởi động | `Ctrl + C` dừng Agent → `dotnet run` lại → PIN mới xuất hiện |
+| Vào web thấy trang trắng hoặc lỗi | Web Client chưa chạy hoặc `.env.local` sai URL | Kiểm tra Terminal 2 có đang chạy không, kiểm tra URL trong `.env.local` |
+| Bấm "Làm mới" không thấy Agent | Chưa tạo Agent qua API hoặc token hết hạn | Chạy lại lệnh `curl` tạo Agent. Nếu token hết hạn, trang sẽ tự chuyển về Đăng nhập |
+| Nhập PIN báo "Agent đang ngoại tuyến" | Agent chưa chạy hoặc đã tắt | Kiểm tra Terminal Agent có đang chạy không |
+| Máy khác trong LAN không kết nối được | Firewall chặn hoặc sai IP | Kiểm tra đã mở port 5000, dùng `--urls "http://0.0.0.0:5000"` khi chạy Gateway |
