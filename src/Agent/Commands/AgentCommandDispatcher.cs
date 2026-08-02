@@ -8,10 +8,13 @@ using RemoteControlLAN.Shared.Messages;
 
 namespace RemoteControlLAN.Agent.Commands;
 
-public sealed class AgentCommandDispatcher(AgentOptions options, PathGuard paths, ProcessGuard processes, IScreenCaptureService screen, IWebcamCaptureService webcam, IKeyboardHookService keyboard, IShutdownService power, IAppLauncherService launcher, INotificationService notifications, FileTransferService transfers)
+public sealed class AgentCommandDispatcher(AgentOptions options, PathGuard paths, ProcessGuard processes, IScreenCaptureService screen, IWebcamCaptureService webcam, IKeyboardHookService keyboard, IShutdownService power, IAppLauncherService launcher, INotificationService notifications, FileTransferService transfers, ILogger<AgentCommandDispatcher> logger)
 {
     private CancellationTokenSource? _screenCts;
     private CancellationTokenSource? _webcamCts;
+    private int _violationCount = 0;
+    private const int MaxViolations = 5;
+
     public async Task ExecuteAsync(MessageEnvelope message, Func<MessageEnvelope, Task> send, CancellationToken cancellationToken)
     {
         try
@@ -36,8 +39,40 @@ public sealed class AgentCommandDispatcher(AgentOptions options, PathGuard paths
                 default: await ErrorAsync(message, send, "UNKNOWN_ACTION", "Agent không hỗ trợ action này."); break;
             }
         }
-        catch (UnauthorizedAccessException ex) { await ErrorAsync(message, send, message.Action is "STOP_PROCESS" ? "PROCESS_PROTECTED" : "PATH_BLOCKED", ex.Message); }
-        catch (Exception ex) { await ErrorAsync(message, send, ex is UnauthorizedAccessException ? "PERMISSION_DENIED" : "COMMAND_FAILED", ex.Message); }
+        catch (UnauthorizedAccessException ex)
+        {
+            await HandleSecurityViolationAsync(message, send, ex.Message, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            if (ex is UnauthorizedAccessException || ex.InnerException is UnauthorizedAccessException)
+            {
+                await HandleSecurityViolationAsync(message, send, ex.Message, cancellationToken);
+            }
+            else
+            {
+                await ErrorAsync(message, send, "COMMAND_FAILED", ex.Message);
+            }
+        }
+    }
+
+    private async Task HandleSecurityViolationAsync(MessageEnvelope message, Func<MessageEnvelope, Task> send, string reason, CancellationToken cancellationToken)
+    {
+        var currentCount = Interlocked.Increment(ref _violationCount);
+        logger.LogWarning("⚠️ CANH BAO BAO MAT ({Action}): {Reason}. Vi pham lan {Count}/{Max}", message.Action, reason, currentCount, MaxViolations);
+
+        var warningMessage = $"⚠️ CẢNH BÁO BẢO MẬT: {reason} (Lần vi phạm: {currentCount}/{MaxViolations}. Tái lặp quá 5 lần sẽ tự động dừng Agent ngay lập tức!).";
+
+        await notifications.ShowAsync("Cảnh báo bảo mật Agent", $"Phát hiện thao tác cấm: {reason}. Vi phạm: {currentCount}/{MaxViolations}", cancellationToken);
+        await ErrorAsync(message, send, message.Action is "STOP_PROCESS" ? "PROCESS_PROTECTED" : "PATH_BLOCKED", warningMessage);
+
+        if (currentCount >= MaxViolations)
+        {
+            logger.LogError("🚨 VI PHẠM QUY TẮC BẢO MẬT QUÁ 5 LẦN! Agent tự động dừng ngay lập tức.");
+            await notifications.ShowAsync("Remote Control LAN", "🚨 Vi phạm quy tắc bảo mật quá 5 lần! Agent tự động dừng ngay lập tức.", cancellationToken);
+            await Task.Delay(1000, cancellationToken);
+            Environment.Exit(1);
+        }
     }
     private static MessageEnvelope Response(MessageEnvelope source, string action, object payload) => MessageEnvelope.Create("RESPONSE", action, payload, source.SessionId, source.AgentId);
     private static Task ErrorAsync(MessageEnvelope source, Func<MessageEnvelope, Task> send, string code, string message) => send(Response(source, "ERROR", new ErrorPayload { Code = code, Message = message, RelatedAction = source.Action }));

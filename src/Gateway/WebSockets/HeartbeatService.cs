@@ -14,7 +14,7 @@ public sealed class HeartbeatService(ConnectionManager connections, MessageRoute
                 if (DateTime.UtcNow - entry.Value.LastSeenAt > TimeSpan.FromSeconds(40))
                 {
                     logger.LogInformation("Heartbeat timeout: {ConnectionId}", entry.Key);
-                    foreach (var session in connections.Remove(entry.Key)) await router.NotifyDisconnectAsync(session);
+                    foreach (var session in connections.Remove(entry.Key)) await router.NotifyDisconnectAsync(session, entry.Key);
                     try { entry.Value.Socket.Abort(); } catch { }
                     continue;
                 }

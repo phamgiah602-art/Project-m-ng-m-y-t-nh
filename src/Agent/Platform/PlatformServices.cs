@@ -33,16 +33,26 @@ public sealed class MacScreenCaptureService : IScreenCaptureService
     public async Task<CapturedImage> CaptureJpegAsync(string quality, CancellationToken cancellationToken)
     {
         var path = Path.Combine(Path.GetTempPath(), $"rclan-{Guid.NewGuid():N}.jpg");
-        try { var process = Process.Start(new ProcessStartInfo("screencapture", $"-x -t jpg \"{path}\"") { UseShellExecute = false }) ?? throw new InvalidOperationException("Không thể gọi screencapture."); await process.WaitForExitAsync(cancellationToken); if (process.ExitCode != 0) throw new UnauthorizedAccessException("macOS chưa cấp quyền Screen Recording."); using var bitmap = new Bitmap(path); return WindowsScreenCaptureService.Compress(bitmap, quality); }
+        try
+        {
+            var process = Process.Start(new ProcessStartInfo("screencapture", $"-x -t jpg \"{path}\"") { UseShellExecute = false }) ?? throw new InvalidOperationException("Không thể gọi screencapture.");
+            await process.WaitForExitAsync(cancellationToken);
+            if (process.ExitCode != 0) throw new UnauthorizedAccessException("macOS chưa cấp quyền Screen Recording.");
+            using var image = Cv2.ImRead(path);
+            if (image.Empty()) throw new InvalidOperationException("Không đọc được ảnh màn hình.");
+            using var resized = image.Width > 1280 ? image.Resize(new OpenCvSharp.Size(1280, image.Height * 1280 / image.Width)) : image.Clone();
+            Cv2.ImEncode(".jpg", resized, out var bytes, [new ImageEncodingParam(ImwriteFlags.JpegQuality, quality switch { "low" => 45, "high" => 75, _ => 60 })]);
+            return new CapturedImage(bytes, resized.Width, resized.Height);
+        }
         finally { if (File.Exists(path)) File.Delete(path); }
     }
 }
 
 public sealed class OpenCvWebcamCaptureService : IWebcamCaptureService
 {
-    private readonly VideoCapture _capture = new(0);
-    public Task<CapturedImage> CaptureJpegAsync(CancellationToken cancellationToken) => Task.Run(() => { if (!_capture.IsOpened()) throw new UnauthorizedAccessException("Không thể mở camera; hãy kiểm tra quyền Camera."); using var frame = new Mat(); if (!_capture.Read(frame) || frame.Empty()) throw new InvalidOperationException("Không đọc được frame webcam."); Cv2.ImEncode(".jpg", frame, out var bytes, [new ImageEncodingParam(ImwriteFlags.JpegQuality, 60)]); return new CapturedImage(bytes, frame.Width, frame.Height); }, cancellationToken);
-    public void Dispose() => _capture.Dispose();
+    private VideoCapture? _capture;
+    public Task<CapturedImage> CaptureJpegAsync(CancellationToken cancellationToken) => Task.Run(() => { _capture ??= new VideoCapture(0); if (!_capture.IsOpened()) throw new UnauthorizedAccessException("Không thể mở camera; hãy kiểm tra quyền Camera."); using var frame = new Mat(); if (!_capture.Read(frame) || frame.Empty()) throw new InvalidOperationException("Không đọc được frame webcam."); Cv2.ImEncode(".jpg", frame, out var bytes, [new ImageEncodingParam(ImwriteFlags.JpegQuality, 60)]); return new CapturedImage(bytes, frame.Width, frame.Height); }, cancellationToken);
+    public void Dispose() => _capture?.Dispose();
 }
 
 public sealed class ConsentKeyboardHookService : IKeyboardHookService
@@ -312,8 +322,16 @@ public sealed class ConsentKeyboardHookService : IKeyboardHookService
         return _commonModes;
     }
 
+    [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    private static extern void CGEventTapEnable(IntPtr tap, bool enable);
+
     private void StopMacRunLoop()
     {
+        if (_eventTap != IntPtr.Zero)
+        {
+            CGEventTapEnable(_eventTap, false);
+            _eventTap = IntPtr.Zero;
+        }
         if (_runLoop != IntPtr.Zero)
         {
             CFRunLoopStop(_runLoop);
@@ -435,9 +453,9 @@ public sealed class ConsentKeyboardHookService : IKeyboardHookService
 
 public sealed class PlatformShutdownService : IShutdownService
 {
-    public Task ShutdownAsync(int delaySeconds, CancellationToken cancellationToken) => RunAsync(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "shutdown" : "osascript", RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? $"/s /t {Math.Clamp(delaySeconds, 0, 3600)}" : "-e 'tell application \"System Events\" to shut down'", cancellationToken);
-    public Task RestartAsync(int delaySeconds, CancellationToken cancellationToken) => RunAsync(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "shutdown" : "osascript", RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? $"/r /t {Math.Clamp(delaySeconds, 0, 3600)}" : "-e 'tell application \"System Events\" to restart'", cancellationToken);
-    private static async Task RunAsync(string fileName, string args, CancellationToken ct) { var process = Process.Start(new ProcessStartInfo(fileName, args) { UseShellExecute = false }) ?? throw new InvalidOperationException("Không khởi động được lệnh nguồn."); await process.WaitForExitAsync(ct); }
+    public Task ShutdownAsync(int delaySeconds, CancellationToken cancellationToken) => RunAsync(false, delaySeconds, cancellationToken);
+    public Task RestartAsync(int delaySeconds, CancellationToken cancellationToken) => RunAsync(true, delaySeconds, cancellationToken);
+    private static async Task RunAsync(bool restart, int delaySeconds, CancellationToken ct) { var info = new ProcessStartInfo(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "shutdown" : "osascript") { UseShellExecute = false }; if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) { info.ArgumentList.Add(restart ? "/r" : "/s"); info.ArgumentList.Add("/t"); info.ArgumentList.Add(Math.Clamp(delaySeconds, 0, 3600).ToString()); } else { info.ArgumentList.Add("-e"); info.ArgumentList.Add(restart ? "tell application \"System Events\" to restart" : "tell application \"System Events\" to shut down"); } var process = Process.Start(info) ?? throw new InvalidOperationException("Không khởi động được lệnh nguồn."); await process.WaitForExitAsync(ct); }
 }
 
 public sealed class PlatformAppLauncherService : IAppLauncherService

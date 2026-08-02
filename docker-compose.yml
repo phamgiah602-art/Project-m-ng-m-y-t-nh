@@ -1,0 +1,30 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: src/Gateway/Dockerfile
+    container_name: rclan-gateway
+    restart: always
+    ports:
+      - "5001:5000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - Jwt__Key=RemoteControlLAN-SuperSecretKey-2026-DoAnMonHoc!@#$
+      - Jwt__Issuer=RemoteControlLAN.Gateway
+      - Jwt__Audience=RemoteControlLAN.Clients
+    volumes:
+      - gateway-data:/app/data
+
+  webclient:
+    build:
+      context: .
+      dockerfile: src/WebClient/Dockerfile
+    container_name: rclan-webclient
+    restart: always
+    ports:
+      - "5173:5173"
+    depends_on:
+      - gateway
+
+volumes:
+  gateway-data:
