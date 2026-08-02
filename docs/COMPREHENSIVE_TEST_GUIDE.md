@@ -25,9 +25,69 @@ Bước 5: Khởi động Agent → Agent in ra mã PIN 6 số (tự động là
 Bước 6: Quay lại Web → Chọn Agent → Nhập PIN → Bắt đầu điều khiển
 ```
 
+## 🐳 KỊCH BẢN CHẠY BẰNG DOCKER COMPOSE (Nhanh & Tiện nhất)
+
+| Thông tin | Chi tiết |
+|---|---|
+| **Yêu cầu cài đặt** | **Docker Desktop** (đã bật sẵn) và .NET 8 SDK (để chạy Agent trên máy Target) |
+| **Số lệnh cần chạy** | Duy nhất 1 lệnh `docker compose` khởi động cả Gateway và WebClient |
+| **Cổng kết nối** | WebClient: `http://localhost:5173` \| Gateway Docker: `http://localhost:5001` |
+
+### Bước 1 — Khởi động Gateway & WebClient bằng Docker
+
+Mở Terminal tại thư mục gốc dự án (`PROJECT VIPPRO`) và chạy:
+
+```bash
+docker compose up --build
+```
+
+**Kết quả mong đợi:** Docker sẽ tự động đóng gói (build) và khởi động 2 container `rclan-gateway` và `rclan-webclient`. Terminal in dòng `Configuration complete; ready for start up`.
+
+### Bước 2 — Mở Web Client & Đăng nhập
+
+1. Mở trình duyệt truy cập: **`http://localhost:5173`**
+2. Đăng nhập tài khoản Admin mặc định:
+   - **Tên đăng nhập**: `admin`
+   - **Mật khẩu**: `Admin@123`
+
+### Bước 3 — Tạo Agent trên giao diện Web
+
+1. Trên trang Dashboard, bấm nút **"+ Tạo Agent"**.
+2. Nhập tên máy (ví dụ: `Docker-Agent`) và chọn OS (`MacOS` hoặc `Windows`).
+3. Bấm **"Tạo mới"** ➔ Lưu lại `AgentId` và `AgentSecretKey`.
+
+### Bước 4 — Cấu hình file `src/Agent/appsettings.json`
+
+Mở file `src/Agent/appsettings.json` và cập nhật:
+
+```json
+{
+  "Agent": {
+    "GatewayUrl": "ws://localhost:5001/ws",
+    "AgentId": "<DÁN_AGENT_ID_VÀO_ĐÂY>",
+    "AgentSecretKey": "<DÁN_AGENT_SECRET_KEY_VÀO_ĐÂY>",
+    "AllowPowerCommands": false,
+    "AdditionalBlockedPaths": [],
+    "AdditionalProtectedProcesses": []
+  }
+}
+```
+
+### Bước 5 — Khởi động Agent & Ghép cặp
+
+Mở một Terminal mới (Terminal 2), gõ:
+
+```bash
+cd src/Agent
+dotnet run
+```
+
+1. Terminal Agent sẽ in ra **Mã PIN 6 số**.
+2. Quay lại trình duyệt `http://localhost:5173`, chọn Agent vừa tạo, nhập Mã PIN và bấm **"Kết nối"** để bắt đầu điều khiển!
+
 ---
 
-## 💻 KỊCH BẢN 1: TỰ TEST TRÊN 1 MÁY MACBOOK (Localhost)
+## 💻 KỊCH BẢN 1: TỰ TEST TRÊN 1 MÁY MACBOOK (Localhost - Không dùng Docker)
 
 | Thông tin | Chi tiết |
 |---|---|
