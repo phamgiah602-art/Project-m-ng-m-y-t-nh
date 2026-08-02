@@ -1,4 +1,87 @@
 import { useEffect, useMemo, useState } from 'react';
 import { wsClient } from '../services/wsClient';
 import type { ProcessInfo } from '../types/protocol';
-export function ProcessList({ sessionId }: { sessionId: string }) { const [items, setItems] = useState<ProcessInfo[]>([]); const [query, setQuery] = useState(''); const [path, setPath] = useState(''); useEffect(() => wsClient.subscribe(message => { if (message.sessionId === sessionId && message.action === 'PROCESS_LIST_RESULT') setItems((message.payload.processes ?? []) as ProcessInfo[]); }), [sessionId]); const filtered = useMemo(() => items.filter(x => x.name.toLowerCase().includes(query.toLowerCase())), [items, query]); return <section className="panel"><div className="panel-title"><h2>Tiến trình</h2><button onClick={() => wsClient.send('GET_PROCESS_LIST', {}, sessionId)}>Làm mới</button></div><div className="row"><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Lọc theo tên" /><input value={path} onChange={e => setPath(e.target.value)} placeholder="Đường dẫn app hợp lệ" /><button disabled={!path} onClick={() => wsClient.send('START_PROCESS', { targetPath: path }, sessionId)}>Mở app</button></div><div className="table-wrap"><table><thead><tr><th>PID</th><th>Tên</th><th>RAM</th><th>Đường dẫn</th><th /></tr></thead><tbody>{filtered.map(item => <tr key={item.pid}><td>{item.pid}</td><td>{item.name}</td><td>{item.memoryMB ?? '—'} MB</td><td className="truncate">{item.path ?? '—'}</td><td><button className="danger compact" onClick={() => { if (confirm(`Dừng ${item.name}?`)) wsClient.send('STOP_PROCESS', { pid: item.pid }, sessionId); }}>Dừng</button></td></tr>)}</tbody></table></div></section>; }
+
+export function ProcessList({ sessionId }: { sessionId: string }) {
+  const [items, setItems] = useState<ProcessInfo[]>([]);
+  const [query, setQuery] = useState('');
+  const [path, setPath] = useState('');
+  const [status, setStatus] = useState('');
+
+  useEffect(() =>
+    wsClient.subscribe(message => {
+      if (message.sessionId !== sessionId) return;
+      if (message.action === 'PROCESS_LIST_RESULT') {
+        setItems((message.payload.processes ?? []) as ProcessInfo[]);
+      }
+      if (message.action === 'STOP_PROCESS_RESULT') {
+        setStatus(String(message.payload.message ?? 'Đã dừng tiến trình.'));
+        wsClient.send('GET_PROCESS_LIST', {}, sessionId);
+      }
+      if (message.action === 'START_PROCESS_RESULT') {
+        setStatus(String(message.payload.message ?? 'Đã khởi động ứng dụng.'));
+        wsClient.send('GET_PROCESS_LIST', {}, sessionId);
+      }
+      if (message.action === 'ERROR' && (message.payload.relatedAction === 'STOP_PROCESS' || message.payload.relatedAction === 'START_PROCESS')) {
+        setStatus(String(message.payload.message ?? 'Thao tác không được phép.'));
+      }
+    }), [sessionId]);
+
+  const filtered = useMemo(
+    () => items.filter(x => x.name.toLowerCase().includes(query.toLowerCase())),
+    [items, query]
+  );
+
+  return (
+    <section className="panel">
+      <div className="panel-title">
+        <h2>Tiến trình</h2>
+        <button onClick={() => wsClient.send('GET_PROCESS_LIST', {}, sessionId)}>Làm mới</button>
+      </div>
+
+      <div className="row">
+        <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Lọc theo tên" />
+        <input value={path} onChange={e => setPath(e.target.value)} placeholder="Đường dẫn app hợp lệ" />
+        <button disabled={!path} onClick={() => wsClient.send('START_PROCESS', { targetPath: path }, sessionId)}>
+          Mở app
+        </button>
+      </div>
+
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>PID</th>
+              <th>Tên</th>
+              <th>RAM</th>
+              <th>Đường dẫn</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(item => (
+              <tr key={item.pid}>
+                <td>{item.pid}</td>
+                <td>{item.name}</td>
+                <td>{item.memoryMB ?? '—'} MB</td>
+                <td className="truncate">{item.path ?? '—'}</td>
+                <td>
+                  <button
+                    className="danger compact"
+                    onClick={() => {
+                      if (confirm(`Dừng ${item.name}?`)) wsClient.send('STOP_PROCESS', { pid: item.pid }, sessionId);
+                    }}
+                  >
+                    Dừng
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {status && <p className="hint" style={{ marginTop: '0.5rem' }}>{status}</p>}
+    </section>
+  );
+}

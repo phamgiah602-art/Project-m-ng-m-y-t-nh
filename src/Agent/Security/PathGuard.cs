@@ -10,7 +10,8 @@ public sealed class PathGuard(AgentOptions options)
     {
         if (string.IsNullOrWhiteSpace(path)) throw new UnauthorizedAccessException("Đường dẫn không hợp lệ.");
         var fullPath = Path.GetFullPath(path);
-        foreach (var blocked in BlockedPaths()) if (IsSameOrChild(fullPath, blocked)) throw new UnauthorizedAccessException("Đường dẫn không hợp lệ.");
+        EnsureNoSymbolicLinks(fullPath);
+        foreach (var blocked in BlockedPaths()) if (IsSameOrChild(fullPath, blocked)) throw new UnauthorizedAccessException($"Đường dẫn '{fullPath}' chứa thư mục/từ khóa cấm truy cập ({blocked}).");
         return fullPath;
     }
     public string ResolveAllowedChild(string parentPath, string fileName)
@@ -31,5 +32,17 @@ public sealed class PathGuard(AgentOptions options)
     {
         var normalizedParent = Path.TrimEndingDirectorySeparator(Path.GetFullPath(parent));
         return string.Equals(candidate, normalizedParent, _comparison) || candidate.StartsWith(normalizedParent + Path.DirectorySeparatorChar, _comparison) || candidate.StartsWith(normalizedParent + Path.AltDirectorySeparatorChar, _comparison);
+    }
+    private static void EnsureNoSymbolicLinks(string fullPath)
+    {
+        var root = Path.GetPathRoot(fullPath) ?? throw new UnauthorizedAccessException("Đường dẫn không hợp lệ.");
+        var relative = Path.GetRelativePath(root, fullPath);
+        var current = root;
+        foreach (var segment in relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+        {
+            current = Path.Combine(current, segment);
+            FileSystemInfo? info = Directory.Exists(current) ? new DirectoryInfo(current) : File.Exists(current) ? new FileInfo(current) : null;
+            if (info?.LinkTarget is not null) throw new UnauthorizedAccessException("Không cho phép đường dẫn symbolic link.");
+        }
     }
 }

@@ -32,4 +32,5 @@ public sealed class UploadFileInitResultPayload { public string TransferId { get
 public sealed class UploadFileChunkPayload { public string TransferId { get; set; } = string.Empty; public int ChunkIndex { get; set; } public string DataBase64 { get; set; } = string.Empty; }
 public sealed class UploadFileResultPayload { public string TransferId { get; set; } = string.Empty; public bool Success { get; set; } public string? Message { get; set; } }
 public sealed class AgentDisconnectedPayload { public string AgentId { get; set; } = string.Empty; public DateTime LastSeenAt { get; set; } }
+public sealed class SessionEndedPayload { public string? Message { get; set; } }
 public sealed class ErrorPayload { public string Code { get; set; } = string.Empty; public string Message { get; set; } = string.Empty; public string? RelatedAction { get; set; } }

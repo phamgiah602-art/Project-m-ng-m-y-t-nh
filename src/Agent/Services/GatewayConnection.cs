@@ -11,6 +11,7 @@ public sealed class GatewayConnection(AgentOptions options, ILogger<GatewayConne
     private readonly SemaphoreSlim _sendLock = new(1, 1);
     private ClientWebSocket? _socket;
     public event Func<MessageEnvelope, Task>? MessageReceived;
+    public void Abort() => _socket?.Abort();
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         var retry = 1;

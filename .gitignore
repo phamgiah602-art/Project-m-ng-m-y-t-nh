@@ -4,6 +4,9 @@ obj/
 logs/
 .vs/
 *.user
+appsettings.Local.json
+.DS_Store
+*.tsbuildinfo
 node_modules/
 dist/
 build/

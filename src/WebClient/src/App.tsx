@@ -4,11 +4,13 @@ import { wsClient } from './services/wsClient';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ControlPage } from './pages/ControlPage';
+import { AdminPage } from './pages/AdminPage';
 
 export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem('rclan-token'));
   const [connectionState, setConnectionState] = useState('connecting');
   const [control, setControl] = useState<{ sessionId: string; agent: Agent }>();
+  const [showAdmin, setShowAdmin] = useState(false);
 
   const logout = useCallback(() => {
     localStorage.removeItem('rclan-token');
@@ -23,14 +25,27 @@ export default function App() {
     return wsClient.onState(setConnectionState);
   }, [token]);
 
+  useEffect(() => wsClient.subscribe(message => {
+    if (message.action === 'SESSION_ENDED' || message.action === 'AGENT_DISCONNECTED') setControl(undefined);
+  }), []);
+
+  const paired = useCallback((sessionId: string, agent: Agent) => setControl({ sessionId, agent }), []);
+  const leaveControl = useCallback(() => {
+    if (control) wsClient.send('END_SESSION', {}, control.sessionId, control.agent.id);
+    setControl(undefined);
+  }, [control]);
+
   if (!token) return <LoginPage onAuthenticated={setToken} />;
+
+  if (showAdmin) return <AdminPage token={token} onBack={() => setShowAdmin(false)} />;
 
   if (!control)
     return (
       <DashboardPage
         token={token}
-        onPaired={(sessionId, agent) => setControl({ sessionId, agent })}
+        onPaired={paired}
         onLogout={logout}
+        onOpenAdmin={() => setShowAdmin(true)}
       />
     );
 
@@ -40,7 +55,7 @@ export default function App() {
       sessionId={control.sessionId}
       agent={control.agent}
       connectionState={connectionState}
-      onLeave={() => setControl(undefined)}
+      onLeave={leaveControl}
     />
   );
 }
