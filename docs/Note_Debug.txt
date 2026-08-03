@@ -1,8 +1,7 @@
 Update chung:
--Thêm tài khoản admin:
-+ Dùng để lưu và truy cập tất cả các tài khoản được tạo.
-- Nút kết nối không có hiện hiệu ứng được nhấn.
-- Các Agrent cũ có tận dụng lại được không, có nhất thiết mỗi khi chạy là phải cài 1 Agent mới hay không, nếu có tểh dùng lại Agent cũ thì chĩ cần gửi mã pin mới hay sao.
+-Sau khi bật keylogger và tạm dừng thì không thể bật lại được, hãy fix điều này
+-Sau 5 phút không hề có mã PIN mới được gửi lại, hãy chỉnh lại
+-khi upload ảnh thì cần có nước xác nhận  hoặc lại bỏ tệp đó, không được khi up lên Agent là tự động gửi ảnh về máy Target
 Kịch bản 1: Tự test trên máy MacOS
 +  
 +

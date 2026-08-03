@@ -243,6 +243,8 @@ dotnet run
 
 Nhập mã PIN vào Web Client (`http://localhost:5173`) và bấm **"Kết nối"**.
 
+> **Lưu ý:** Bạn hoàn toàn có thể áp dụng 🐳 **Kịch bản chạy bằng Docker Compose** ở đầu bài cho máy Windows tương tự như Mac. Cổng kết nối vẫn là 5001 cho Docker.
+
 ---
 
 ## 🖥 KỊCH BẢN 3: WINDOWS ĐIỀU KHIỂN MACBOOK (Mạng LAN)
@@ -260,32 +262,19 @@ Nhập mã PIN vào Web Client (`http://localhost:5173`) và bấm **"Kết nố
 **1. Tìm IP mạng LAN:**
 Mở Command Prompt (cmd), gõ `ipconfig`. Tìm dòng `IPv4 Address` (ví dụ: `192.168.1.15`).
 
-**2. Mở Firewall cho cổng 5000:**
+**2. Mở Firewall (Cổng 5000 và 5001):**
 Mở PowerShell dưới quyền **Administrator** và chạy:
 ```powershell
-netsh advfirewall firewall add rule name="Allow Port 5000" dir=in action=allow protocol=TCP localport=5000
+netsh advfirewall firewall add rule name="Allow RC LAN" dir=in action=allow protocol=TCP localport=5000,5001
 ```
 
-**3. Terminal 1 (Windows) — Chạy Gateway:**
-```bash
-cd src\Gateway
-dotnet run --urls "http://0.0.0.0:5000"
-```
-> Phải dùng `0.0.0.0` thay vì `localhost` để máy khác trong LAN truy cập được.
+**3. Khởi động Gateway & Web Client:**
+- **Cách A - Dùng Docker (Khuyên dùng):** Mở 1 Terminal chạy `docker compose up --build`. Mở trình duyệt `http://localhost:5173` đăng nhập `admin` / `Admin@123`.
+- **Cách B - Dùng Terminal (Không dùng Docker):**
+  - Terminal 1 (Gateway): `cd src\Gateway` ➔ `dotnet run --urls "http://0.0.0.0:5000"`
+  - Terminal 2 (Web Client): Sửa file `src\WebClient\.env.local` thêm `VITE_GATEWAY_HTTP_URL=http://192.168.1.15:5000` ➔ `cd src\WebClient` ➔ `npm run dev -- --host`. Mở trình duyệt `http://localhost:5173` đăng nhập.
 
-**4. Terminal 2 (Windows) — Chạy Web Client:**
-- Sửa file `src\WebClient\.env.local`:
-  ```
-  VITE_GATEWAY_HTTP_URL=http://192.168.1.15:5000
-  ```
-- Chạy:
-  ```bash
-  cd src\WebClient
-  npm run dev -- --host
-  ```
-- Mở trình duyệt `http://localhost:5173` → Đăng nhập bằng tài khoản admin mặc định (`admin` / `Admin@123`).
-
-**5. Tạo Agent trên giao diện Web:**
+**4. Tạo Agent trên giao diện Web:**
 Trên Web Client, bấm nút "+ Tạo Agent". Chọn Platform là `"MacOS"`.
 Gửi `agentId` và `agentSecretKey` sang máy Mac (qua chat, email, USB...).
 
@@ -294,7 +283,7 @@ Gửi `agentId` và `agentSecretKey` sang máy Mac (qua chat, email, USB...).
 **1. Terminal 1 (MacBook) — Cấu hình và chạy Agent:**
 - Sửa `src/Agent/appsettings.json`:
   ```json
-  "GatewayUrl": "ws://192.168.1.15:5000/ws",
+  "GatewayUrl": "ws://192.168.1.15:5001/ws", // Dùng cổng 5001 nếu Operator chạy Docker, cổng 5000 nếu chạy Terminal
   "AgentId": "<ID từ máy Windows>",
   "AgentSecretKey": "<Secret từ máy Windows>"
   ```
@@ -325,33 +314,21 @@ ipconfig getifaddr en0
 ```
 (Ví dụ: `192.168.1.20`). Mac mặc định không chặn cổng, không cần chỉnh Firewall.
 
-**2. Terminal 1 (MacBook) — Chạy Gateway:**
-```bash
-cd src/Gateway
-dotnet run --urls "http://0.0.0.0:5000"
-```
+**2. Khởi động Gateway & Web Client:**
+- **Cách A - Dùng Docker (Khuyên dùng):** Mở 1 Terminal chạy `docker compose up --build`. Mở trình duyệt `http://localhost:5173` đăng nhập `admin` / `Admin@123`.
+- **Cách B - Dùng Terminal:** 
+  - Terminal 1: `cd src/Gateway` ➔ `dotnet run --urls "http://0.0.0.0:5000"`
+  - Terminal 2: Sửa `VITE_GATEWAY_HTTP_URL=http://192.168.1.20:5000` trong `.env.local` ➔ `cd src/WebClient` ➔ `npm run dev -- --host`. Đăng nhập web `http://localhost:5173`.
 
-**3. Terminal 2 (MacBook) — Chạy Web Client:**
-- Sửa `src/WebClient/.env.local`:
-  ```
-  VITE_GATEWAY_HTTP_URL=http://192.168.1.20:5000
-  ```
-- Chạy:
-  ```bash
-  cd src/WebClient
-  npm run dev -- --host
-  ```
-- Mở trình duyệt → Đăng nhập bằng tài khoản admin mặc định (`admin` / `Admin@123`).
-
-**4. Tạo Agent trên giao diện Web:**
-Tương tự Bước 3 ở Kịch bản 1, bấm "+ Tạo Agent" trên web, chọn Platform là `"Windows"`. Gửi credentials sang máy Win.
+**3. Tạo Agent trên giao diện Web:**
+Tương tự, bấm "+ Tạo Agent" trên web, chọn Platform là `"Windows"`. Gửi credentials sang máy Win.
 
 ### TRÊN MÁY WINDOWS (TARGET)
 
 **1. Terminal 1 (Windows) — Cấu hình và chạy Agent:**
 - Sửa `src\Agent\appsettings.json`:
   ```json
-  "GatewayUrl": "ws://192.168.1.20:5000/ws",
+  "GatewayUrl": "ws://192.168.1.20:5001/ws", // Cổng 5001 nếu Mac chạy Docker, cổng 5000 nếu Terminal
   "AgentId": "<ID từ máy Mac>",
   "AgentSecretKey": "<Secret từ máy Mac>"
   ```
@@ -376,14 +353,14 @@ Tương tự Bước 3 ở Kịch bản 1, bấm "+ Tạo Agent" trên web, ch�
 
 Thực hiện giống hệt phần "TRÊN MÁY WINDOWS (OPERATOR)" ở Kịch bản 3:
 1. Tìm IP bằng `ipconfig` (ví dụ: `192.168.1.50`).
-2. Mở Firewall cổng 5000.
-3. Terminal 1: Chạy Gateway với `--urls "http://0.0.0.0:5000"`.
-4. Terminal 2: Sửa `.env.local` → Chạy Web Client → Đăng nhập (`admin` / `Admin@123`).
+2. Mở Firewall cổng 5000 và 5001 (xem lệnh Kịch bản 3).
+3. Khởi động Gateway & WebClient (Bằng lệnh `docker compose up --build` HOẶC chạy Terminal `dotnet run` + `npm run dev`).
+4. Đăng nhập web `http://localhost:5173` (`admin` / `Admin@123`).
 5. Tạo Agent qua nút "+ Tạo Agent" trên Web (chọn Platform `"Windows"`), gửi credentials sang máy B.
 
 ### TRÊN MÁY WINDOWS B (TARGET)
 
-1. Sửa `appsettings.json`: đặt `GatewayUrl` trỏ về IP máy A.
+1. Sửa `appsettings.json`: đặt `GatewayUrl` trỏ về IP máy A (Cổng 5001 nếu A chạy Docker, 5000 nếu Terminal).
 2. Chạy `dotnet run`.
 3. Đọc mã PIN → Gửi cho máy A nhập.
 
