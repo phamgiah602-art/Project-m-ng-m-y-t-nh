@@ -1,104 +1,41 @@
 # 🚀 TÀI LIỆU HƯỚNG DẪN TEST TOÀN DIỆN VÀ CHI TIẾT (E2E)
 
-Tài liệu này hướng dẫn chi tiết cách kiểm thử toàn bộ hệ thống **Remote Control LAN** trong 5 kịch bản kiểm thử khác nhau (gồm tự test trên 1 máy Mac, 1 máy Win và các kịch bản điều khiển qua mạng LAN).
+Tài liệu này hướng dẫn chi tiết cách kiểm thử toàn bộ hệ thống **Remote Control LAN** theo **6 kịch bản** kiểm thử khác nhau. Ở mỗi kịch bản, bạn đều có 2 lựa chọn (Option) để khởi chạy hệ thống: dùng Docker hoặc dùng Terminal.
 
 ---
 
-## 📚 KIẾN THỨC NỀN TẢNG
+## 🛠 YÊU CẦU CÀI ĐẶT (PREREQUISITES)
 
-### Hệ thống gồm 3 thành phần bắt buộc:
+Tuỳ thuộc vào lựa chọn chạy bằng **Docker** hay **Terminal**, các thành phần của hệ thống (Web Client, Gateway, Agent) sẽ yêu cầu cài đặt môi trường khác nhau:
 
-| Thành phần | Vai trò | Cần cài đặt |
+### 1. Nếu chạy bằng Docker (Dành cho Gateway & Web Client)
+*Khuyên dùng cho phía máy điều khiển (Operator) để tiết kiệm thời gian setup.*
+
+| Thành phần | Môi trường cần cài đặt | Ghi chú |
 |---|---|---|
-| **Gateway** (Máy chủ) | Trung tâm xử lý API, WebSocket, cơ sở dữ liệu | .NET 8 SDK |
-| **Web Client** (Giao diện) | Trang web cho người điều khiển (Operator) | Node.js (v18+) |
-| **Agent** (Máy bị điều khiển) | Chạy ngầm trên máy Target, nhận lệnh từ Gateway | .NET 8 SDK |
+| **Web Client** | Docker Desktop | Chạy trong container `rclan-webclient`. |
+| **Gateway** | Docker Desktop | Chạy trong container `rclan-gateway`. |
+| **Agent** | .NET 8 SDK | **Bắt buộc chạy trực tiếp (Terminal)** vì Agent cần quyền thao tác sâu vào hệ điều hành (chụp màn hình, quản lý tiến trình, keylogger...). |
 
-### Quy trình hoạt động tổng quát (áp dụng cho mọi kịch bản):
+### 2. Nếu chạy hoàn toàn bằng Terminal (Local)
+*Dành cho việc dev hoặc khi không có sẵn Docker.*
 
-```
-Bước 1: Khởi động Gateway (máy chủ)
-Bước 2: Khởi động Web Client → Mở trình duyệt → Đăng nhập bằng tài khoản admin mặc định
-Bước 3: Tạo Agent trực tiếp trên giao diện Web (nút "+ Tạo Agent")
-Bước 4: Cấu hình Agent (dán AgentId + Secret vào file cấu hình)
-Bước 5: Khởi động Agent → Agent in ra mã PIN 6 số (tự động làm mới sau mỗi 4 phút)
-Bước 6: Quay lại Web → Chọn Agent → Nhập PIN → Bắt đầu điều khiển
-```
-
-## 🐳 KỊCH BẢN CHẠY BẰNG DOCKER COMPOSE (Nhanh & Tiện nhất)
-
-| Thông tin | Chi tiết |
-|---|---|
-| **Yêu cầu cài đặt** | **Docker Desktop** (đã bật sẵn) và .NET 8 SDK (để chạy Agent trên máy Target) |
-| **Số lệnh cần chạy** | Duy nhất 1 lệnh `docker compose` khởi động cả Gateway và WebClient |
-| **Cổng kết nối** | WebClient: `http://localhost:5173` \| Gateway Docker: `http://localhost:5001` |
-
-### Bước 1 — Khởi động Gateway & WebClient bằng Docker
-
-Mở Terminal tại thư mục gốc dự án (`PROJECT VIPPRO`) và chạy:
-
-```bash
-docker compose up --build
-```
-
-**Kết quả mong đợi:** Docker sẽ tự động đóng gói (build) và khởi động 2 container `rclan-gateway` và `rclan-webclient`. Terminal in dòng `Configuration complete; ready for start up`.
-
-### Bước 2 — Mở Web Client & Đăng nhập
-
-1. Mở trình duyệt truy cập: **`http://localhost:5173`**
-2. Đăng nhập tài khoản Admin mặc định:
-   - **Tên đăng nhập**: `admin`
-   - **Mật khẩu**: `Admin@123`
-
-### Bước 3 — Tạo Agent trên giao diện Web
-
-1. Trên trang Dashboard, bấm nút **"+ Tạo Agent"**.
-2. Nhập tên máy (ví dụ: `Docker-Agent`) và chọn OS (`MacOS` hoặc `Windows`).
-3. Bấm **"Tạo mới"** ➔ Lưu lại `AgentId` và `AgentSecretKey`.
-
-### Bước 4 — Cấu hình file `src/Agent/appsettings.json`
-
-Mở file `src/Agent/appsettings.json` và cập nhật:
-
-```json
-{
-  "Agent": {
-    "GatewayUrl": "ws://localhost:5001/ws",
-    "AgentId": "<DÁN_AGENT_ID_VÀO_ĐÂY>",
-    "AgentSecretKey": "<DÁN_AGENT_SECRET_KEY_VÀO_ĐÂY>",
-    "AllowPowerCommands": false,
-    "AdditionalBlockedPaths": [],
-    "AdditionalProtectedProcesses": []
-  }
-}
-```
-
-### Bước 5 — Khởi động Agent & Ghép cặp
-
-Mở một Terminal mới (Terminal 2), gõ:
-
-```bash
-cd src/Agent
-dotnet run
-```
-
-1. Terminal Agent sẽ in ra **Mã PIN 6 số**.
-2. Quay lại trình duyệt `http://localhost:5173`, chọn Agent vừa tạo, nhập Mã PIN và bấm **"Kết nối"** để bắt đầu điều khiển!
+| Thành phần | Môi trường cần cài đặt | Ghi chú |
+|---|---|---|
+| **Web Client** | Node.js (v18 trở lên) | Dùng lệnh `npm install` và `npm run dev`. |
+| **Gateway** | .NET 8 SDK | Dùng lệnh `dotnet run`. |
+| **Agent** | .NET 8 SDK | Dùng lệnh `dotnet run`. |
 
 ---
 
-## 💻 KỊCH BẢN 1: TỰ TEST TRÊN 1 MÁY MACBOOK (Localhost - Không dùng Docker)
+## ⚙️ CẤU HÌNH CHUNG BAN ĐẦU
 
-| Thông tin | Chi tiết |
-|---|---|
-| **Số máy tính** | 1 máy Mac duy nhất |
-| **Số terminal cần mở** | 3 cửa sổ Terminal riêng biệt |
-| **Yêu cầu cài đặt** | .NET 8 SDK, Node.js (v18+), mã nguồn dự án |
+### Dành cho Option Terminal (Chạy Gateway bằng `dotnet run`)
 
-### Bước 1 — Terminal 1: Khởi động Gateway
+Trước khi chạy Gateway bằng Terminal, hãy tạo file Secret Key:
 
-**Trước khi chạy lần đầu**, kiểm tra file `src/Gateway/appsettings.Local.json` có tồn tại không. Nếu chưa có (do bị `.gitignore`), hãy tạo file với nội dung:
-
+1. Đi tới thư mục `src/Gateway/`.
+2. Tạo file `appsettings.Local.json` với nội dung:
 ```json
 {
   "Jwt": {
@@ -107,301 +44,218 @@ dotnet run
 }
 ```
 
-Sau đó chạy Gateway:
+> **Lưu ý:** Nếu bạn chọn chạy bằng **Docker** (Option 1), hãy **bỏ qua bước này** — JWT Key đã được cấu hình sẵn trong file `docker-compose.yml`.
 
-```bash
-cd "/Users/phamgiahung/Downloads/ĐỒ ÁN MÔN HỌC/MẠNG MÁY TÍNH/PROJECT VIPPRO/src/Gateway"
-dotnet run
-```
+### Cấu hình Agent (`src/Agent/appsettings.json`)
 
-**Kết quả mong đợi:** Terminal hiện dòng chữ `Now listening on: http://localhost:5000`. Gateway cũng sẽ tự tạo tài khoản admin mặc định (`admin` / `Admin@123`) nếu chưa có, và tự mở khoá nếu tài khoản bị khoá do đăng nhập sai nhiều lần. Giữ nguyên terminal này, **không được tắt**.
-
-**Kiểm tra:** Mở trình duyệt, truy cập `http://localhost:5000/health`. Nếu thấy `{"status":"ok"}` nghĩa là Gateway đã sẵn sàng.
-
-### Bước 2 — Terminal 2: Khởi động Web Client
-
-```bash
-cd "/Users/phamgiahung/Downloads/ĐỒ ÁN MÔN HỌC/MẠNG MÁY TÍNH/PROJECT VIPPRO/src/WebClient"
-npm run dev
-```
-
-**Kết quả mong đợi:** Terminal hiện dòng `Local: http://localhost:5173/`. Giữ nguyên terminal này.
-
-**Thao tác trên trình duyệt:**
-1. Mở `http://localhost:5173` trên trình duyệt.
-2. Bạn sẽ thấy màn hình **"Đăng nhập Operator"**.
-3. Bấm đăng nhập với tài khoản Admin mặc định:
-   - Username: `admin`
-   - Password: `Admin@123`
-4. (Hệ thống đã tự động tạo sẵn tài khoản Admin này lúc khởi động Gateway).
-5. Sau khi đăng nhập, hệ thống sẽ chuyển sang trang Dashboard. Ở góc phải, bạn sẽ thấy nút **"Admin Panel"** dùng để quản lý toàn bộ hệ thống.
-
-### Bước 3 — Tạo Agent trên giao diện Web
-
-1. Ngay trên trang Dashboard, bấm nút **"+ Tạo Agent"**.
-2. Nhập tên máy (ví dụ: `MacBook-Test`) và chọn hệ điều hành `MacOS`.
-3. Bấm **"Tạo mới"**.
-4. Hệ thống sẽ hiển thị một bảng màu xanh chứa `AgentId` và `AgentSecretKey`.
-
-> ⚠️ **QUAN TRỌNG:** `AgentSecretKey` chỉ hiển thị **DUY NHẤT 1 LẦN**. Hãy để nguyên bảng này trên màn hình để copy sang Bước 4.
-
-### Bước 4 — Cấu hình Agent
-
-Mở file `src/Agent/appsettings.json` và sửa 3 dòng sau:
+Sau khi tạo Agent trên giao diện Web, bạn sẽ cần cập nhật file `appsettings.json` của Agent với các thông tin sau:
 
 ```json
 {
   "Agent": {
-    "GatewayUrl": "ws://localhost:5000/ws",
-    "AgentId": "<DÁN agentId VÀO ĐÂY>",
-    "AgentSecretKey": "<DÁN agentSecretKey VÀO ĐÂY>",
-    "AllowPowerCommands": false,
+    "GatewayUrl": "ws://<ĐỊA_CHỈ_GATEWAY>:<CỔNG>/ws",
+    "AgentId": "<AGENT_ID_TỪ_WEB>",
+    "AgentSecretKey": "<SECRET_KEY_TỪ_WEB>",
+    "AllowPowerCommands": true,
     "AdditionalBlockedPaths": [],
     "AdditionalProtectedProcesses": []
   }
 }
 ```
 
-### Bước 5 — Terminal 3 (tiếp): Khởi động Agent
-
-```bash
-cd "/Users/phamgiahung/Downloads/ĐỒ ÁN MÔN HỌC/MẠNG MÁY TÍNH/PROJECT VIPPRO/src/Agent"
-dotnet run
-```
-
-**Kết quả mong đợi:** Terminal in ra dòng chứa **mã PIN 6 số** (ví dụ: `PIN: 482917`). Ghi lại mã này.
-
-> **Tính năng mới:** Mã PIN này có hiệu lực trong 5 phút. Sau mỗi 3 phút, Agent sẽ tự động sinh mã PIN mới và cập nhật lên Gateway. Bạn không cần phải khởi động lại Agent nếu lỡ để quá thời gian!
-
-### Bước 6 — Ghép cặp trên trình duyệt
-
-1. Quay lại trình duyệt (`http://localhost:5173`).
-2. Bấm nút **"Làm mới danh sách"** → Agent vừa tạo sẽ tự động được chọn.
-3. Nhập mã PIN 6 số vừa ghi ở Bước 5.
-4. Bấm **"Kết nối"** → Nếu thành công, trang sẽ chuyển sang giao diện điều khiển.
+> **Ghi chú:** `AllowPowerCommands` mặc định là `false`. Đặt thành `true` nếu bạn muốn cho phép Operator gửi lệnh **Tắt máy (Shutdown)** hoặc **Khởi động lại (Restart)** máy Target từ xa.
 
 ---
 
-## 💻 KỊCH BẢN 2: TỰ TEST TRÊN 1 MÁY WINDOWS (Localhost)
+## 📋 6 KỊCH BẢN KIỂM THỬ (TEST SCENARIOS)
 
-| Thông tin | Chi tiết |
-|---|---|
-| **Số máy tính** | 1 máy Windows duy nhất |
-| **Số Terminal / Command Prompt** | 3 cửa sổ riêng biệt |
-| **Yêu cầu cài đặt** | .NET 8 SDK, Node.js (v18+), mã nguồn dự án |
+Dưới đây là 6 kịch bản. Quy ước:
+- **Operator (Người điều khiển):** Chạy Gateway + Web Client.
+- **Target / Agent (Máy bị điều khiển):** Chạy Agent.
 
-### Bước 1 — Terminal 1 (cmd / PowerShell): Khởi động Gateway
-
-**Trước khi chạy lần đầu**, kiểm tra file `src\Gateway\appsettings.Local.json` có tồn tại không. Nếu chưa có, tạo file với nội dung:
-
-```json
-{
-  "Jwt": {
-    "Key": "RemoteControlLAN-SuperSecretKey-2026-DoAnMonHoc!@#$"
-  }
-}
-```
-
-Sau đó chạy Gateway:
-
-```cmd
-cd src\Gateway
-dotnet run
-```
-
-**Kết quả mong đợi:** Terminal hiện dòng `Now listening on: http://localhost:5000`.
-
-### Bước 2 — Terminal 2: Khởi động Web Client
-
-```cmd
-cd src\WebClient
-npm run dev
-```
-
-Mở trình duyệt `http://localhost:5173` ➔ Đăng nhập bằng `admin` / `Admin@123`.
-
-### Bước 3 — Tạo Agent trên giao diện Web
-
-1. Nhấn nút **"+ Tạo Agent"**.
-2. Nhập tên máy (ví dụ: `Windows-Test`) và chọn Platform là **`Windows`**.
-3. Bấm **"Tạo mới"** và lưu lại `AgentId` + `AgentSecretKey`.
-
-### Bước 4 — Cấu hình Agent
-
-Mở file `src\Agent\appsettings.json` dán `AgentId` và `AgentSecretKey` vừa tạo.
-
-### Bước 5 — Terminal 3: Khởi động Agent
-
-```cmd
-cd src\Agent
-dotnet run
-```
-
-**Kết quả mong đợi:** Màn hình Terminal in mã **PIN 6 số**.
-
-### Bước 6 — Ghép cặp trên trình duyệt
-
-Nhập mã PIN vào Web Client (`http://localhost:5173`) và bấm **"Kết nối"**.
-
-> **Lưu ý:** Bạn hoàn toàn có thể áp dụng 🐳 **Kịch bản chạy bằng Docker Compose** ở đầu bài cho máy Windows tương tự như Mac. Cổng kết nối vẫn là 5001 cho Docker.
+*(Tài khoản đăng nhập Web mặc định: `admin` / `Admin@123`)*
 
 ---
 
-## 🖥 KỊCH BẢN 3: WINDOWS ĐIỀU KHIỂN MACBOOK (Mạng LAN)
+### KỊCH BẢN 1: TỰ TEST TRÊN 1 MÁY WINDOWS (Localhost)
+*Mọi thành phần đều chạy trên cùng 1 máy tính Windows.*
 
-| Thông tin | Chi tiết |
-|---|---|
-| **Số máy tính** | 2 máy (cùng mạng WiFi/LAN) |
-| **Máy Windows (Operator)** | Mở 2 terminal — Chạy Gateway + Web Client |
-| **Máy MacBook (Target)** | Mở 1 terminal — Chạy Agent |
-| **Yêu cầu cài đặt (Win)** | .NET 8 SDK, Node.js |
-| **Yêu cầu cài đặt (Mac)** | .NET 8 SDK |
+#### Option 1: Chạy bằng Docker
+1. **Khởi động Gateway & Web Client:**
+   - Mở Terminal ở thư mục gốc, chạy: `docker compose up --build`
+2. **Khởi động Agent:**
+   - Đăng nhập Web Client (`http://localhost:5173`), tạo Agent (chọn HĐH Windows), lấy `AgentId` và `AgentSecretKey`.
+   - Cấu hình file `src\Agent\appsettings.json`, đặt `GatewayUrl` là `ws://localhost:5001/ws`.
+   - Mở Terminal mới, vào `src\Agent` chạy `dotnet run`.
+   - Nhập mã PIN vào Web Client để kết nối.
 
-### TRÊN MÁY WINDOWS (OPERATOR)
-
-**1. Tìm IP mạng LAN:**
-Mở Command Prompt (cmd), gõ `ipconfig`. Tìm dòng `IPv4 Address` (ví dụ: `192.168.1.15`).
-
-**2. Mở Firewall (Cổng 5000 và 5001):**
-Mở PowerShell dưới quyền **Administrator** và chạy:
-```powershell
-netsh advfirewall firewall add rule name="Allow RC LAN" dir=in action=allow protocol=TCP localport=5000,5001
-```
-
-**3. Khởi động Gateway & Web Client:**
-- **Cách A - Dùng Docker (Khuyên dùng):** Mở 1 Terminal chạy `docker compose up --build`. Mở trình duyệt `http://localhost:5173` đăng nhập `admin` / `Admin@123`.
-- **Cách B - Dùng Terminal (Không dùng Docker):**
-  - Terminal 1 (Gateway): `cd src\Gateway` ➔ `dotnet run --urls "http://0.0.0.0:5000"`
-  - Terminal 2 (Web Client): Sửa file `src\WebClient\.env.local` thêm `VITE_GATEWAY_HTTP_URL=http://192.168.1.15:5000` ➔ `cd src\WebClient` ➔ `npm run dev -- --host`. Mở trình duyệt `http://localhost:5173` đăng nhập.
-
-**4. Tạo Agent trên giao diện Web:**
-Trên Web Client, bấm nút "+ Tạo Agent". Chọn Platform là `"MacOS"`.
-Gửi `agentId` và `agentSecretKey` sang máy Mac (qua chat, email, USB...).
-
-### TRÊN MÁY MACBOOK (TARGET)
-
-**1. Terminal 1 (MacBook) — Cấu hình và chạy Agent:**
-- Sửa `src/Agent/appsettings.json`:
-  ```json
-  "GatewayUrl": "ws://192.168.1.15:5001/ws", // Dùng cổng 5001 nếu Operator chạy Docker, cổng 5000 nếu chạy Terminal
-  "AgentId": "<ID từ máy Windows>",
-  "AgentSecretKey": "<Secret từ máy Windows>"
-  ```
-- Chạy:
-  ```bash
-  cd src/Agent
-  dotnet run
-  ```
-- Đọc mã PIN → Gửi cho người ở máy Windows nhập vào trình duyệt.
+#### Option 2: Chạy bằng Terminal
+1. **Khởi động Gateway & Web Client:**
+   - Terminal 1 (Gateway): `cd src\Gateway` ➔ `dotnet run` (Chạy cổng 5000).
+   - Terminal 2 (Web Client): `cd src\WebClient` ➔ `npm install` (lần đầu) ➔ `npm run dev` (Chạy cổng 5173).
+2. **Khởi động Agent:**
+   - Đăng nhập Web (`http://localhost:5173`), tạo Agent (chọn HĐH Windows), lấy ID/Secret.
+   - Cấu hình file `src\Agent\appsettings.json`, đặt `GatewayUrl` là `ws://localhost:5000/ws`.
+   - Terminal 3 (Agent): `cd src\Agent` ➔ `dotnet run`.
+   - Nhập mã PIN vào Web Client để kết nối.
 
 ---
 
-## 🍏 KỊCH BẢN 4: MACBOOK ĐIỀU KHIỂN WINDOWS (Mạng LAN)
+### KỊCH BẢN 2: TỰ TEST TRÊN 1 MÁY MAC (Localhost)
+*Mọi thành phần đều chạy trên cùng 1 máy tính MacBook.*
 
-| Thông tin | Chi tiết |
-|---|---|
-| **Số máy tính** | 2 máy (cùng mạng WiFi/LAN) |
-| **Máy MacBook (Operator)** | Mở 2 terminal — Chạy Gateway + Web Client |
-| **Máy Windows (Target)** | Mở 1 terminal — Chạy Agent |
-| **Yêu cầu cài đặt (Mac)** | .NET 8 SDK, Node.js |
-| **Yêu cầu cài đặt (Win)** | .NET 8 SDK (hoặc .NET 8 Runtime) |
+#### Option 1: Chạy bằng Docker
+1. **Khởi động Gateway & Web Client:**
+   - Mở Terminal ở thư mục gốc, chạy: `docker compose up --build`
+2. **Khởi động Agent:**
+   - Đăng nhập Web Client (`http://localhost:5173`), tạo Agent (chọn HĐH MacOS), lấy ID/Secret.
+   - Cấu hình file `src/Agent/appsettings.json`, đặt `GatewayUrl` là `ws://localhost:5001/ws`.
+   - Mở Terminal mới, vào `src/Agent` chạy `dotnet run`.
+   - Nhập mã PIN vào Web Client để kết nối.
 
-### TRÊN MÁY MACBOOK (OPERATOR)
-
-**1. Tìm IP mạng LAN:**
-```bash
-ipconfig getifaddr en0
-```
-(Ví dụ: `192.168.1.20`). Mac mặc định không chặn cổng, không cần chỉnh Firewall.
-
-**2. Khởi động Gateway & Web Client:**
-- **Cách A - Dùng Docker (Khuyên dùng):** Mở 1 Terminal chạy `docker compose up --build`. Mở trình duyệt `http://localhost:5173` đăng nhập `admin` / `Admin@123`.
-- **Cách B - Dùng Terminal:** 
-  - Terminal 1: `cd src/Gateway` ➔ `dotnet run --urls "http://0.0.0.0:5000"`
-  - Terminal 2: Sửa `VITE_GATEWAY_HTTP_URL=http://192.168.1.20:5000` trong `.env.local` ➔ `cd src/WebClient` ➔ `npm run dev -- --host`. Đăng nhập web `http://localhost:5173`.
-
-**3. Tạo Agent trên giao diện Web:**
-Tương tự, bấm "+ Tạo Agent" trên web, chọn Platform là `"Windows"`. Gửi credentials sang máy Win.
-
-### TRÊN MÁY WINDOWS (TARGET)
-
-**1. Terminal 1 (Windows) — Cấu hình và chạy Agent:**
-- Sửa `src\Agent\appsettings.json`:
-  ```json
-  "GatewayUrl": "ws://192.168.1.20:5001/ws", // Cổng 5001 nếu Mac chạy Docker, cổng 5000 nếu Terminal
-  "AgentId": "<ID từ máy Mac>",
-  "AgentSecretKey": "<Secret từ máy Mac>"
-  ```
-- Chạy: `dotnet run`
-- Đọc mã PIN → Gửi cho người ở máy MacBook nhập vào trình duyệt.
-
-> **Lưu ý Windows:** Nếu Windows Defender báo chặn, bấm **"Allow access"**. Keylogger có thể bị Antivirus phát hiện → cần thêm exception.
+#### Option 2: Chạy bằng Terminal
+1. **Khởi động Gateway & Web Client:**
+   - Terminal 1 (Gateway): `cd src/Gateway` ➔ `dotnet run` (Chạy cổng 5000).
+   - Terminal 2 (Web Client): `cd src/WebClient` ➔ `npm install` (lần đầu) ➔ `npm run dev` (Chạy cổng 5173).
+2. **Khởi động Agent:**
+   - Đăng nhập Web (`http://localhost:5173`), tạo Agent (chọn HĐH MacOS), lấy ID/Secret.
+   - Cấu hình file `src/Agent/appsettings.json`, đặt `GatewayUrl` là `ws://localhost:5000/ws`.
+   - Terminal 3 (Agent): `cd src/Agent` ➔ `dotnet run`.
+   - Nhập mã PIN vào Web Client để kết nối.
 
 ---
 
-## 🖥 KỊCH BẢN 5: WINDOWS ĐIỀU KHIỂN WINDOWS (Mạng LAN)
+### KỊCH BẢN 3: MAC (Operator) ĐIỀU KHIỂN WINDOWS (Target)
+*Máy Mac quản lý Gateway & Web Client. Máy Windows chạy Agent. (Hai máy chung mạng LAN)*
 
-| Thông tin | Chi tiết |
-|---|---|
-| **Số máy tính** | 2 máy Windows (cùng mạng WiFi/LAN) |
-| **Máy Windows A (Operator)** | Mở 2 terminal — Chạy Gateway + Web Client |
-| **Máy Windows B (Target)** | Mở 1 terminal — Chạy Agent |
-| **Yêu cầu cài đặt (Máy A)** | .NET 8 SDK, Node.js |
-| **Yêu cầu cài đặt (Máy B)** | .NET 8 SDK (hoặc Runtime) |
+**Trên máy Mac (Operator):**
+*Tìm IP LAN của Mac bằng lệnh: `ipconfig getifaddr en0` (Giả sử là `192.168.1.20`)*
 
-### TRÊN MÁY WINDOWS A (OPERATOR)
+#### Option 1: Chạy bằng Docker (trên Mac)
+- Chạy `docker compose up --build` tại thư mục gốc.
+- Đăng nhập `http://localhost:5173` tạo Agent (Windows), lấy credentials gửi cho máy Windows.
+- Cấu hình Agent trên Windows: `GatewayUrl` là `ws://192.168.1.20:5001/ws`.
 
-Thực hiện giống hệt phần "TRÊN MÁY WINDOWS (OPERATOR)" ở Kịch bản 3:
-1. Tìm IP bằng `ipconfig` (ví dụ: `192.168.1.50`).
-2. Mở Firewall cổng 5000 và 5001 (xem lệnh Kịch bản 3).
-3. Khởi động Gateway & WebClient (Bằng lệnh `docker compose up --build` HOẶC chạy Terminal `dotnet run` + `npm run dev`).
-4. Đăng nhập web `http://localhost:5173` (`admin` / `Admin@123`).
-5. Tạo Agent qua nút "+ Tạo Agent" trên Web (chọn Platform `"Windows"`), gửi credentials sang máy B.
+#### Option 2: Chạy bằng Terminal (trên Mac)
+- Terminal 1: `cd src/Gateway` ➔ `dotnet run --urls "http://0.0.0.0:5000"`
+- Terminal 2: Sửa file `src/WebClient/.env.local` thêm `VITE_GATEWAY_HTTP_URL=http://192.168.1.20:5000` ➔ `cd src/WebClient` ➔ `npm install` (lần đầu) ➔ `npm run dev -- --host`
+- Đăng nhập Web, tạo Agent (Windows), gửi credentials cho Windows.
+- Cấu hình Agent trên Windows: `GatewayUrl` là `ws://192.168.1.20:5000/ws`.
 
-### TRÊN MÁY WINDOWS B (TARGET)
-
-1. Sửa `appsettings.json`: đặt `GatewayUrl` trỏ về IP máy A (Cổng 5001 nếu A chạy Docker, 5000 nếu Terminal).
-2. Chạy `dotnet run`.
-3. Đọc mã PIN → Gửi cho máy A nhập.
+**Trên máy Windows (Target):**
+- Chỉnh sửa `src\Agent\appsettings.json` bằng thông tin nhận được (URL, ID, Secret).
+- Mở Terminal chạy: `cd src\Agent` ➔ `dotnet run`.
+- Đọc mã PIN đưa cho người dùng Mac kết nối. *(Lưu ý: Nếu Windows Defender chặn, hãy bấm Allow).*
 
 ---
 
-## 📋 QUY TRÌNH TEST CÁC TÍNH NĂNG
+### KỊCH BẢN 4: WINDOWS (Operator) ĐIỀU KHIỂN MAC (Target)
+*Máy Windows quản lý Gateway & Web Client. Máy Mac chạy Agent. (Hai máy chung mạng LAN)*
 
-Sau khi ghép cặp thành công (trang chuyển sang giao diện điều khiển), hãy test lần lượt:
+**Trên máy Windows (Operator):**
+*Tìm IP LAN bằng lệnh: `ipconfig` (Giả sử là `192.168.1.15`)*
+*(Yêu cầu: Mở Firewall cổng 5000, 5001 trên Windows trước khi chạy)*
+
+#### Option 1: Chạy bằng Docker (trên Windows)
+- Chạy `docker compose up --build`.
+- Đăng nhập web `http://localhost:5173`, tạo Agent (MacOS), gửi credentials cho Mac.
+- Cấu hình Agent trên Mac: `GatewayUrl` là `ws://192.168.1.15:5001/ws`.
+
+#### Option 2: Chạy bằng Terminal (trên Windows)
+- Terminal 1 (Gateway): `cd src\Gateway` ➔ `dotnet run --urls "http://0.0.0.0:5000"`
+- Terminal 2 (Web Client): Sửa `VITE_GATEWAY_HTTP_URL=http://192.168.1.15:5000` trong `.env.local` ➔ `cd src\WebClient` ➔ `npm install` (lần đầu) ➔ `npm run dev -- --host`
+- Đăng nhập Web, tạo Agent (MacOS), gửi credentials cho Mac.
+- Cấu hình Agent trên Mac: `GatewayUrl` là `ws://192.168.1.15:5000/ws`.
+
+**Trên máy Mac (Target):**
+- Chỉnh sửa `src/Agent/appsettings.json` bằng thông tin nhận được.
+- Mở Terminal chạy: `cd src/Agent` ➔ `dotnet run`.
+- Đọc mã PIN đưa cho Windows. *(Cần cấp quyền Accessibility, Screen Recording cho Terminal trên Mac).*
+
+---
+
+### KỊCH BẢN 5: WINDOWS (Operator) ĐIỀU KHIỂN WINDOWS (Target)
+*Máy Windows A điều khiển máy Windows B trong cùng mạng LAN.*
+
+**Trên máy Windows A (Operator):**
+*Tìm IP LAN, mở Firewall cổng 5000, 5001.*
+
+#### Option 1: Chạy bằng Docker (trên Windows A)
+- Chạy `docker compose up --build`.
+- Tạo Agent (Windows) trên web, gửi credentials sang máy B.
+- URL Gateway cho máy B là: `ws://<IP_Máy_A>:5001/ws`.
+
+#### Option 2: Chạy bằng Terminal (trên Windows A)
+- Gateway: `dotnet run --urls "http://0.0.0.0:5000"`
+- Web Client: Sửa `.env.local` trỏ về IP của Máy A, chạy `npm run dev -- --host`.
+- Tạo Agent (Windows) trên web, gửi credentials sang máy B.
+- URL Gateway cho máy B là: `ws://<IP_Máy_A>:5000/ws`.
+
+**Trên máy Windows B (Target):**
+- Cập nhật `src\Agent\appsettings.json` với URL, ID, Secret.
+- Chạy `dotnet run` ở thư mục Agent. Cung cấp mã PIN cho Máy A.
+
+---
+
+### KỊCH BẢN 6: MAC (Operator) ĐIỀU KHIỂN MAC (Target)
+*Máy Mac A điều khiển máy Mac B trong cùng mạng LAN.*
+
+**Trên máy Mac A (Operator):**
+*Tìm IP LAN bằng lệnh `ipconfig getifaddr en0`.*
+
+#### Option 1: Chạy bằng Docker (trên Mac A)
+- Chạy `docker compose up --build`.
+- Tạo Agent (MacOS) trên web, gửi credentials sang máy B.
+- URL Gateway cho máy B là: `ws://<IP_Máy_A>:5001/ws`.
+
+#### Option 2: Chạy bằng Terminal (trên Mac A)
+- Gateway: `dotnet run --urls "http://0.0.0.0:5000"`
+- Web Client: Sửa `.env.local` trỏ về IP của Máy A, chạy `npm run dev -- --host`.
+- Tạo Agent (MacOS) trên web, gửi credentials sang máy B.
+- URL Gateway cho máy B là: `ws://<IP_Máy_A>:5000/ws`.
+
+**Trên máy Mac B (Target):**
+- Cập nhật `src/Agent/appsettings.json` với URL, ID, Secret.
+- Chạy `dotnet run` ở thư mục Agent. Cung cấp mã PIN cho Máy A.
+
+---
+
+## 📋 QUY TRÌNH TEST CÁC TÍNH NĂNG (SAU KHI KẾT NỐI)
 
 | # | Tính năng | Cách test | Kết quả đúng |
 |---|---|---|---|
 | 1 | **Danh sách tiến trình** | Click tab "Processes" | Hiện danh sách tất cả tiến trình đang chạy trên máy Target |
 | 2 | **Mở ứng dụng** | Gõ `notepad` (Win) hoặc `open -a Calculator` (Mac) vào ô Start Process → Bấm Start | App tương ứng tự mở trên máy Target |
-| 3 | **Tắt ứng dụng** | Chọn app vừa mở → Bấm "Kill" | App bị đóng lập tức (nếu chọn app hệ thống như `kernel_task` hoặc `svchost` sẽ báo lỗi cảnh báo bảo mật) |
+| 3 | **Tắt ứng dụng** | Chọn app vừa mở → Bấm "Kill" | App bị đóng lập tức (Tiến trình hệ thống như `kernel_task` hoặc `svchost` sẽ bị bảo vệ và từ chối) |
 | 4 | **Xem màn hình** | Click tab "Screen" | Hiện ảnh chụp desktop máy Target, cập nhật liên tục |
 | 5 | **Webcam** | Click tab "Webcam" | Đèn camera trên máy Target sáng, hình ảnh truyền lên Web |
 | 6 | **Duyệt file & Upload** | Click tab "Files", chọn tệp upload ➔ Xem khung Preview ➔ Bấm **Xác nhận Upload** | Tệp truyền sang Target thành công |
-| 7 | **Keylogger** | Bật Keylogger → Sang máy Target gõ bàn phím → Tắt & bật lại | Ký tự xuất hiện real-time trên Web, bật/tắt lại mượt mà |
-| 8 | **Ngắt kết nối** | Nhấn `Ctrl + C` trên Terminal Agent | Web hiển thị trạng thái Offline ngay lập tức |
-| 9 | **Vi phạm bảo mật quá 5 lần** | Thử mở thư mục cấm (ví dụ `/System` hoặc `C:\Windows`) 5 lần | Cảnh báo xuất hiện trên Web & Máy Target. Lần 5 Agent tự động tắt để bảo vệ máy Target. |
+| 7 | **Download file** | Click tab "Files", duyệt tới tệp trên máy Target → Bấm **Download** | Tệp được tải về máy Operator thành công |
+| 8 | **Keylogger** | Bật Keylogger → Sang máy Target gõ bàn phím → Tắt & bật lại | Ký tự xuất hiện real-time trên Web (Máy Target sẽ hiện popup xin đồng ý trước khi bật) |
+| 9 | **Tắt máy từ xa (Shutdown)** | Bấm nút "Shutdown" trên Web | Máy Target bắt đầu tắt sau 10 giây. *(Cần `AllowPowerCommands: true` trong `appsettings.json`)* |
+| 10 | **Khởi động lại từ xa (Restart)** | Bấm nút "Restart" trên Web | Máy Target tự khởi động lại. *(Cần `AllowPowerCommands: true`)* |
+| 11 | **Vi phạm bảo mật quá 5 lần** | Thử truy cập thư mục cấm (`/System`, `C:\Windows`) hoặc kill tiến trình hệ thống liên tục 5 lần | Mỗi lần vi phạm hiện cảnh báo trên Web và máy Target. Lần thứ 5, Agent tự động thoát để bảo vệ máy Target |
 
-### Lưu ý quyền trên macOS (khi máy Target là Mac):
-- **Screen View:** Cần cấp quyền *System Settings → Privacy & Security → Screen Recording* cho Terminal.
+### Lưu ý quyền trên macOS (khi máy Target là Mac)
+- **Xem màn hình:** Cần cấp quyền *System Settings → Privacy & Security → Screen Recording* cho Terminal.
 - **Webcam:** Cần cấp quyền *Camera* cho Terminal.
 - **Keylogger:** Cần cấp quyền *Accessibility* cho Terminal.
 
-### Lưu ý trên Windows (khi máy Target là Windows):
-- **Keylogger:** Có thể bị Windows Defender/Antivirus chặn → cần thêm exception.
+### Lưu ý trên Windows (khi máy Target là Windows)
+- **Keylogger:** Có thể bị Windows Defender/Antivirus chặn → cần thêm exception cho thư mục dự án.
 - **Kill Process:** Tiến trình SYSTEM sẽ bị từ chối (Access Denied) → đây là hành vi đúng.
-
----
 
 ## ❓ XỬ LÝ SỰ CỐ THƯỜNG GẶP
 
 | Sự cố | Nguyên nhân | Cách khắc phục |
 |---|---|---|
-| `http://localhost:5000/health` không trả về gì | Gateway chưa chạy hoặc bị lỗi | Kiểm tra Terminal 1, nếu có lỗi "Address in use" → `Ctrl + C` rồi `dotnet run` lại |
-| Lỗi "Jwt:Key phải có ít nhất 32 ký tự" | Thiếu file `appsettings.Local.json` | Tạo file `src/Gateway/appsettings.Local.json` với JWT Key (xem Bước 1 Kịch bản 1) |
-| Đăng nhập admin báo "Tài khoản đang bị khoá" | Đăng nhập sai nhiều lần trước đó | Restart Gateway (`Ctrl+C` → `dotnet run` lại) — hệ thống tự mở khoá admin khi khởi động |
-| Mã PIN liên tục hiện ra mới | Do tự động cập nhật mỗi 4 phút | Cứ sử dụng mã PIN mới nhất hiển thị dưới cùng của Terminal. |
-| Vào web thấy trang trắng hoặc lỗi | Web Client chưa chạy hoặc `.env.local` sai URL | Kiểm tra Terminal 2 có đang chạy không, kiểm tra URL trong `.env.local` |
-| Bấm "Làm mới" không thấy Agent | Chưa tạo Agent hoặc token hết hạn | Hãy bấm "+ Tạo Agent". Nếu token hết hạn, trang sẽ tự chuyển về Đăng nhập |
-| Nhập PIN báo "Agent đang ngoại tuyến" | Agent chưa chạy hoặc đã tắt | Kiểm tra Terminal Agent có đang chạy không |
-| Máy khác trong LAN không kết nối được | Firewall chặn hoặc sai IP | Kiểm tra đã mở port 5000, dùng `--urls "http://0.0.0.0:5000"` khi chạy Gateway |
+| Lỗi **"Jwt:Key phải có ít nhất 32 ký tự"** | Thiếu file `appsettings.Local.json` | Tạo file `src/Gateway/appsettings.Local.json` với JWT Key (xem mục Cấu hình chung). Nếu dùng Docker thì bỏ qua |
+| **Máy khác trong LAN không kết nối được** | Firewall chặn hoặc sai IP | Mở Firewall cho cổng 5000 và 5001. Gateway phải chạy với `--urls "http://0.0.0.0:5000"`. Dùng `ping <IP>` để kiểm tra kết nối |
+| **Mã PIN liên tục đổi** | Tính năng bảo mật tự động | PIN tự thay đổi mỗi **3 phút**, mỗi mã có hiệu lực tối đa **5 phút**. Luôn sử dụng mã mới nhất trên Terminal Agent |
+| Agent báo **"Gateway từ chối Agent"** | `AgentId` hoặc `AgentSecretKey` sai | Tạo lại Agent mới trên giao diện Web và copy chính xác ID/Secret vào `appsettings.json` |
+| **Agent bị treo, không hiện mã PIN** | Không kết nối được tới Gateway | Kiểm tra kết nối mạng bằng `ping <IP_Gateway>`. Đảm bảo Gateway đang chạy và Firewall đã mở |
+| **Cổng 5000 bị chiếm trên Mac** | macOS AirPlay Receiver chiếm cổng 5000 | Tắt AirPlay Receiver trong *System Settings → General → AirDrop & Handoff*, hoặc dùng Docker (cổng 5001) |
+| **macOS yêu cầu cấp quyền** | Thiếu quyền Accessibility/Screen Recording/Camera | Vào *System Settings → Privacy & Security* → cấp quyền cho Terminal. Khởi động lại Agent sau khi cấp |
+| **Windows Defender chặn Agent/Keylogger** | Antivirus phát hiện hành vi keylogger | Thêm exception cho thư mục project trong Windows Security → Virus & threat protection |
+| Đăng nhập admin báo **"Tài khoản đang bị khoá"** | Đăng nhập sai nhiều lần trước đó | Khởi động lại Gateway (`Ctrl+C` → `dotnet run` lại hoặc `docker compose restart`) — hệ thống tự mở khoá admin khi khởi động |
+| Bấm Shutdown/Restart báo **"Lệnh nguồn đang bị tắt"** | `AllowPowerCommands` đang là `false` | Sửa `appsettings.json` của Agent: đặt `"AllowPowerCommands": true`, rồi khởi động lại Agent |
